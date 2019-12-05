@@ -1,0 +1,100 @@
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/gpio.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <errno.h>
+#include <stdio.h> 
+
+#include "erl_nif.h"
+
+struct cdev_priv {
+    ErlNifResourceType *gpio_chip_rt;
+};
+
+struct gpio_chip {
+    int fd;
+};
+
+static void gpio_chip_dtor(ErlNifEnv *env, void *obj)
+{
+    struct gpio_chip *chip = (struct gpio_chip*) obj;
+
+    close(chip->fd);
+}
+
+static int load(ErlNifEnv *env, void **priv_data, const ERL_NIF_TERM info)
+{
+    (void) info;
+    struct cdev_priv *priv = enif_alloc(sizeof(struct cdev_priv));
+
+    if (!priv) {
+        return 1;
+    }
+
+    priv->gpio_chip_rt = enif_open_resource_type(env, NULL, "gpio_chip", gpio_chip_dtor, ERL_NIF_RT_CREATE, NULL);
+
+    if (priv->gpio_chip_rt == NULL) {
+        return 2;
+    }
+
+    *priv_data = (void *) priv;
+
+    return 0;
+    
+}
+
+
+static ERL_NIF_TERM open_chip(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    char chip_path[16];
+    memset(&chip_path, '\0', sizeof(chip_path));
+    if (!enif_get_string(env, argv[0], chip_path, sizeof(chip_path), ERL_NIF_LATIN1)) {
+        return enif_make_badarg(env);
+    }
+
+    struct gpio_chip *chip = enif_alloc_resource(priv->gpio_chip_rt, sizeof(struct gpio_chip));
+
+    chip->fd = open(chip_path, O_RDWR);
+
+    ERL_NIF_TERM chip_resource = enif_make_resource(env, chip);
+    enif_release_resource(chip);
+
+    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
+
+    return enif_make_tuple2(env, ok_atom, chip_resource);
+}
+
+static ERL_NIF_TERM get_info_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+    struct gpiochip_info info;
+
+    if (argc != 1 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) &chip))
+        return enif_make_badarg(env);
+
+    int rv = ioctl(chip->fd, GPIO_GET_CHIPINFO_IOCTL, &info);
+
+    if (rv < 0) {
+      return enif_make_atom(env, "error");
+    }
+
+    ERL_NIF_TERM chip_name = enif_make_string(env, info.name, ERL_NIF_LATIN1);
+    ERL_NIF_TERM chip_label = enif_make_string(env, info.label, ERL_NIF_LATIN1);
+    ERL_NIF_TERM number_lines = enif_make_int(env, (int) info.lines);
+
+    return enif_make_tuple3(env, chip_name, chip_label, number_lines);
+}
+
+
+static ErlNifFunc nif_funcs[] = {
+    {"open", 1, open_chip},
+    {"get_info", 1, get_info_nif}
+};
+
+ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)
+
+

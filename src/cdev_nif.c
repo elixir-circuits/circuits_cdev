@@ -89,10 +89,47 @@ static ERL_NIF_TERM get_info_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM ar
     return enif_make_tuple3(env, chip_name, chip_label, number_lines);
 }
 
+static ERL_NIF_TERM close_chip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+
+    if (argc != 1 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) &chip))
+        return enif_make_badarg(env);
+
+    close(chip->fd);
+    chip->fd = -1;
+
+    return enif_make_atom(env, "ok");
+}
+
+static ERL_NIF_TERM get_line_info_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+    struct gpioline_info info;
+    int rv, offset;
+
+    if (argc != 2 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) &chip) || !enif_get_int(env, argv[1], &offset))
+        return enif_make_badarg(env);
+
+    info.line_offset = offset;
+
+    rv = ioctl(chip->fd, GPIO_GET_LINEINFO_IOCTL, &info);
+
+    ERL_NIF_TERM flags = enif_make_int(env, info.flags);
+    ERL_NIF_TERM name = enif_make_string(env, info.name, ERL_NIF_LATIN1);
+    ERL_NIF_TERM consumer = enif_make_string(env, info.consumer, ERL_NIF_LATIN1);
+
+    return enif_make_tuple3(env, flags, name, consumer);
+}
+
 
 static ErlNifFunc nif_funcs[] = {
     {"open", 1, open_chip},
-    {"get_info", 1, get_info_nif}
+    {"close", 1, close_chip_nif},
+    {"get_info", 1, get_info_nif},
+    {"get_line_info", 2, get_line_info_nif}
 };
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

@@ -5,10 +5,11 @@ defmodule Circuits.GPIO.Chip do
           ref: reference(),
           name: String.t(),
           consumer: String.t(),
-          number_of_lines: non_neg_integer()
+    number_of_lines: non_neg_integer(),
+    label: Strin.t()
         }
 
-  defstruct ref: nil, name: nil, consumer: nil, number_of_lines: 0
+  defstruct ref: nil, name: nil, consumer: nil, number_of_lines: 0, label: nil
 
   @spec open(String.t()) :: {:ok, t()}
   def open(chip_device) do

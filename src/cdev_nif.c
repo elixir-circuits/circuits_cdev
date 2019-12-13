@@ -17,6 +17,10 @@ struct gpio_chip {
     int fd;
 };
 
+struct gpio_line_req_handle {
+    int fd;
+};
+
 static void gpio_chip_dtor(ErlNifEnv *env, void *obj)
 {
     struct gpio_chip *chip = (struct gpio_chip*) obj;

@@ -9,12 +9,12 @@ defmodule Circuits.GPIO.Chip.Line do
           offset: offset(),
           name: String.t(),
           consumer: String.t(),
-          hanlde: reference() | nil,
+          handle: reference() | nil,
           # this will change
           flags: integer()
         }
 
-  defstruct chip: nil, offset: nil
+  defstruct chip: nil, offset: nil, name: nil, consumer: nil, flags: 0, handle: nil
 
   @spec new(Chip.t(), offset()) :: t()
   def new(chip, offset) do

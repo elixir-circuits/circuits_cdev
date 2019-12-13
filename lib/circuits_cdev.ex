@@ -1,62 +1,36 @@
 defmodule Circuits.GPIO.Chip do
-  defmodule Nif do
-    @on_load {:load_nif, 0}
-    @compile {:autoload, false}
+  alias Circuits.GPIO.Chip.{Nif, Line}
 
-    def load_nif() do
-      nif_binary = Application.app_dir(:circuits_cdev, "priv/cdev_nif")
+  @type t :: %__MODULE__{
+          ref: reference(),
+          name: String.t(),
+          consumer: String.t(),
+          number_of_lines: non_neg_integer()
+        }
 
-      :erlang.load_nif(to_charlist(nif_binary), 0)
-    end
+  defstruct ref: nil, name: nil, consumer: nil, number_of_lines: 0
 
-    def open(_chip_device) do
-      :erlang.nif_error(:nif_not_loaded)
-    end
-
-    def close(_chip) do
-      :erlang.nif_error(:nif_not_loaded)
-    end
-
-    def get_info(_chip_ref) do
-      :erlang.nif_error(:nif_not_loaded)
-    end
-
-    def get_line_info(_chip, _line_offset) do
-      :erlang.nif_error(:nif_not_loaded)
-    end
-  end
-
-  @spec open(String.t()) :: {:ok, reference()}
+  @spec open(String.t()) :: {:ok, t()}
   def open(chip_device) do
-    chip_device
-    |> to_charlist()
-    |> Nif.open()
+    case Nif.open(to_charlist(chip_device)) do
+      {:ok, chip_ref} ->
+        {name, label, lines} = Nif.get_info(chip_ref)
+
+        {:ok,
+         %__MODULE__{
+           ref: chip_ref,
+           name: to_charlist(name),
+           label: to_charlist(label),
+           number_of_lines: lines
+         }}
+    end
   end
 
-  @spec close(reference()) :: :ok
-  def close(chip), do: Nif.close(chip)
+  @spec close(t()) :: :ok
+  def close(%__MODULE__{ref: ref}), do: Nif.close(ref)
 
-  @spec get_info(reference()) :: %{name: String.t(), label: String.t(), lines: integer()}
-  def get_info(chip) do
-    {name, label, lines} = Nif.get_info(chip)
-
-    %{name: to_charlist(name), label: to_charlist(label), lines: lines}
+  @spec get_line(t(), Line.offset()) :: Line.t()
+  def get_line(chip, offset) do
+    Line.new(chip, offset)
   end
-
-  def get_line_info(chip, line_offset) do
-    {flags, name, consumer} = Nif.get_line_info(chip, line_offset)
-
-    # TODO: unmask flags, move to proper data structure
-    %{
-      flags: flags,
-      name: line_name_to_string_or_nil(name),
-      consumer: line_consumer_to_string_or_nil(consumer)
-    }
-  end
-
-  defp line_name_to_string_or_nil([]), do: nil
-  defp line_name_to_string_or_nil(line_name), do: to_string(line_name)
-
-  defp line_consumer_to_string_or_nil([]), do: nil
-  defp line_consumer_to_string_or_nil(consumer), do: to_string(consumer)
 end

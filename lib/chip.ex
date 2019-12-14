@@ -23,6 +23,6 @@ defmodule Circuits.GPIO.Chip do
     consumer = Keyword.get(opts, :consumer, "circuits_cdev")
     default = Keyword.get(opts, :default, 0)
 
-    Nif.request_linehandle(line, requst_flags, default, consumer, chip)
+    Nif.request_linehandle(chip, line, default, requst_flags, consumer)
   end
 end

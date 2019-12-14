@@ -147,11 +147,11 @@ static ERL_NIF_TERM request_linehandle_nif(ErlNifEnv *env, int argc, const ERL_N
     int rv, lineoffset, flags, default_value;
 
     if (argc != 5
-            || !enif_get_int(env, argv[0], &lineoffset)
-            || !enif_get_int(env, argv[1], &flags)
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) chip)
+            || !enif_get_int(env, argv[1], &lineoffset)
             || !enif_get_int(env, argv[2], &default_value)
-            || !enif_get_string(env, argv[3], consumer, sizeof(consumer), ERL_NIF_LATIN1)
-            || !enif_get_resource(env, argv[4], priv->gpio_chip_rt, (void **) chip))
+            || !enif_get_int(env, argv[3], &flags)
+            || !enif_get_string(env, argv[4], consumer, sizeof(consumer), ERL_NIF_LATIN1))
         return enif_make_badarg(env);
 
     struct gpiohandle_request *req = enif_alloc_resource(priv->gpiohandle_request_rt, sizeof(struct gpiohandle_request));

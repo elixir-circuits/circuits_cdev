@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-/_build
-/cover
-/deps
-/doc
-/.fetch
-erl_crash.dump
-*.ez
-*.beam
-/config/*.secret.exs
-=======
 # The directory Mix will write compiled artifacts to.
 /_build/
 
@@ -34,5 +23,3 @@ erl_crash.dump
 circuits_cdev-*.tar
 
 /priv/
-
->>>>>>> 287b78f... Open chip and get chip info

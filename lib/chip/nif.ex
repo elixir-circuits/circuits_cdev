@@ -23,4 +23,8 @@ defmodule Circuits.GPIO.Chip.Nif do
   def get_line_info(_chip, _line_offset) do
     :erlang.nif_error(:nif_not_loaded)
   end
+
+  def request_linehandle(_line_offset, _flags, _default_value, _consumer, _chip_ref) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
 end

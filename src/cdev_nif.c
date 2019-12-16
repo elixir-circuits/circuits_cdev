@@ -147,7 +147,7 @@ static ERL_NIF_TERM request_linehandle_nif(ErlNifEnv *env, int argc, const ERL_N
     int rv, lineoffset, flags, default_value;
 
     if (argc != 5
-            || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) chip)
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) &chip)
             || !enif_get_int(env, argv[1], &lineoffset)
             || !enif_get_int(env, argv[2], &default_value)
             || !enif_get_int(env, argv[3], &flags)

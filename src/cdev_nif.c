@@ -156,6 +156,8 @@ static ERL_NIF_TERM request_linehandle_nif(ErlNifEnv *env, int argc, const ERL_N
 
     struct gpiohandle_request *req = enif_alloc_resource(priv->gpiohandle_request_rt, sizeof(struct gpiohandle_request));
 
+    memset(req, 0, sizeof(struct gpiohandle_request));
+
     req->flags = flags;
     req->lines = 1;
     req->lineoffsets[0] = lineoffset;

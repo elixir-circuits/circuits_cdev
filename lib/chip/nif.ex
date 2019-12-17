@@ -31,4 +31,8 @@ defmodule Circuits.GPIO.Chip.Nif do
   def set_value(_handle, _value) do
     :erlang.nif_error(:nif_not_loaded)
   end
+
+  def get_value(_handle) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
 end

@@ -38,4 +38,8 @@ defmodule Circuits.GPIO.Chip do
   def set_value(handle, value) do
     Nif.set_value(handle, value)
   end
+
+  def get_value(hanlde) do
+    Nif.get_value(hanlde)
+  end
 end

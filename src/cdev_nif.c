@@ -176,13 +176,33 @@ static ERL_NIF_TERM request_linehandle_nif(ErlNifEnv *env, int argc, const ERL_N
     return enif_make_tuple2(env, ok_atom, linehandle_resource);
 }
 
+static ERL_NIF_TERM set_value_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpiohandle_request *req;
+    struct gpiohandle_data data;
+    int rv, new_value;
+
+    if (argc != 2 || !enif_get_resource(env, argv[0], priv->gpiohandle_request_rt, (void **) &req) || !enif_get_int(env, argv[1], &new_value))
+        return enif_make_badarg(env);
+
+    data.values[0] = new_value;
+
+    rv = ioctl(req->fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data);
+
+    if (rv < 0)
+        return enif_make_atom(env, "error"); // make better
+
+    return enif_make_atom(env, "ok");
+}
 
 static ErlNifFunc nif_funcs[] = {
     {"open", 1, open_chip},
     {"close", 1, close_chip_nif},
     {"get_info", 1, get_info_nif},
     {"get_line_info", 2, get_line_info_nif},
-    {"request_linehandle", 5, request_linehandle_nif}
+    {"request_linehandle", 5, request_linehandle_nif},
+    {"set_value", 2, set_value_nif}
 };
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

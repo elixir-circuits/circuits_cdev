@@ -18,10 +18,6 @@ struct gpio_chip {
     int fd;
 };
 
-struct gpio_line_req_handle {
-    int fd;
-};
-
 static void gpio_chip_dtor(ErlNifEnv *env, void *obj)
 {
     struct gpio_chip *chip = (struct gpio_chip*) obj;
@@ -162,6 +158,7 @@ static ERL_NIF_TERM request_linehandle_nif(ErlNifEnv *env, int argc, const ERL_N
     req->lines = 1;
     req->lineoffsets[0] = lineoffset;
     req->default_values[0] = default_value;
+    strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
 
     rv = ioctl(chip->fd, GPIO_GET_LINEHANDLE_IOCTL, req);
 

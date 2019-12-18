@@ -23,7 +23,7 @@ defmodule Circuits.GPIO.Chip do
   @spec get_line(t(), Line.offset()) :: Line.t()
   def get_line(chip, offset), do: Line.new(chip, offset)
 
-  @spec request_linehandle(t(), Line.offest(), LineHandle.direction(), keywork()) ::
+  @spec request_linehandle(t(), Line.offest(), LineHandle.direction(), keyword()) ::
           LineHandle.t()
   def request_linehandle(chip, offset, direction, opts \\ []) do
     chip

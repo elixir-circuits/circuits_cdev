@@ -1,5 +1,5 @@
 defmodule Circuits.GPIO.Chip.LineHandle do
-  alias Circuits.GPIO.Chip.Line
+  alias Circuits.GPIO.Chip.{Line, Nif}
 
   @type direction :: :input | :output
 
@@ -8,8 +8,8 @@ defmodule Circuits.GPIO.Chip.LineHandle do
             ref: reference()
           }
 
-  @encforce_keys [:line, :reference]
-  defstruct line: nil, reference: nil
+  @enforce_keys [:line, :ref]
+  defstruct line: nil, ref: nil
 
   @spec for_line(Line.t(), direction(), keyword()) :: t()
   def for_line(line, direction, opts) do
@@ -25,7 +25,7 @@ defmodule Circuits.GPIO.Chip.LineHandle do
 
     # better error handling
     {:ok, ref} =
-      Nif.request_linehandle(Line.chip(line), Line.offset(line), default, falgs, consumer)
+      Nif.request_linehandle(Line.chip(line), Line.offset(line), default, flags, consumer)
 
     %__MODULE__{line: line, ref: ref}
   end

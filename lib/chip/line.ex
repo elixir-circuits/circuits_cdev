@@ -1,8 +1,8 @@
 defmodule Circuits.GPIO.Chip.Line do
   alias Circuits.GPIO.Chip
-  alias Circuits.GPIO.Chip.{Nif, LineInfo, LineHandle}
+  alias Circuits.GPIO.Chip.{LineInfo, LineHandle}
 
-  @type offset :: non_neg_ineger()
+  @type offset :: non_neg_integer()
 
   @opaque t :: %__MODULE__{
             chip: Chip.t(),
@@ -27,7 +27,7 @@ defmodule Circuits.GPIO.Chip.Line do
 
   @spec request_handle(t(), atom(), keyword) :: LineHandle.t()
   def request_handle(%__MODULE__{} = line, direction, opts \\ []) do
-    LineHandle.from_line(line, direction, opts)
+    LineHandle.for_line(line, direction, opts)
   end
 
   def chip(%__MODULE__{chip: chip}), do: chip

@@ -28,6 +28,6 @@ defmodule Circuits.GPIO.Chip do
   def request_linehandle(chip, offset, direction, opts \\ []) do
     chip
     |> Line.new(offset)
-    |> Line.request_linehandle(direction, opts)
+    |> Line.request_handle(direction, opts)
   end
 end

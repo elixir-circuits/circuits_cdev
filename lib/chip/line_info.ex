@@ -1,6 +1,8 @@
 defmodule Circuits.GPIO.Chip.LineInfo do
   alias Circuits.GPIO.Chip.Nif
 
+  @type flags :: :kernel | :is_out | :active_low | :open_drain | :open_sourced
+
   defstruct line: nil, name: nil, consumer: nil, flags: nil
 
   def get(chip, line) do

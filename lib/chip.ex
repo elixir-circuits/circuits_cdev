@@ -1,7 +1,7 @@
 defmodule Circuits.GPIO.Chip do
-  alias Circuits.GPIO.Chip.{Nif, Info, LineInfo}
+  alias Circuits.GPIO.Chip.{Nif, Info, Line, LineHandle}
 
-  @type t :: reference()
+  @opaque t :: reference()
 
   @spec open(String.t()) :: {:ok, t()}
   def open(device_path) do
@@ -20,26 +20,14 @@ defmodule Circuits.GPIO.Chip do
     Info.get(chip)
   end
 
-  def line_info(chip, line) do
-    LineInfo.get(chip, line)
-  end
+  @spec get_line(t(), Line.offset()) :: Line.t()
+  def get_line(chip, offset), do: Line.new(chip, offset)
 
-  def request_linehandle(chip, line, requst_flags, opts) do
-    consumer =
-      opts
-      |> Keyword.get(:consumer, "circuits_cdev")
-      |> to_charlist()
-
-    default = Keyword.get(opts, :default, 0)
-
-    Nif.request_linehandle(chip, line, default, requst_flags, consumer)
-  end
-
-  def set_value(handle, value) do
-    Nif.set_value(handle, value)
-  end
-
-  def get_value(hanlde) do
-    Nif.get_value(hanlde)
+  @spec request_linehandle(t(), Line.offest(), LineHandle.direction(), keywork()) ::
+          LineHandle.t()
+  def request_linehandle(chip, offset, direction, opts \\ []) do
+    chip
+    |> Line.new(offset)
+    |> Line.request_linehandle(direction, opts)
   end
 end

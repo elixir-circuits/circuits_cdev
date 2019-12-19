@@ -1,5 +1,5 @@
 defmodule Circuits.GPIO.Chip do
-  alias Circuits.GPIO.Chip.{Nif, Info, Line}
+  alias Circuits.GPIO.Chip.{Nif, Info, Line, LineHandleMulti}
 
   @opaque t :: reference()
 
@@ -30,5 +30,11 @@ defmodule Circuits.GPIO.Chip do
     chip
     |> Line.new(offset)
     |> Line.request_handle(direction, opts)
+  end
+
+  def request_linehandle_multi(chip, lines, direction, opts \\ []) do
+    chip
+    |> get_lines(lines)
+    |> LineHandleMulti.for_lines(direction, opts)
   end
 end

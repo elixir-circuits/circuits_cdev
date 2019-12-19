@@ -10,7 +10,7 @@ defmodule Circuits.GPIO.Chip.Info do
 
   defstruct name: nil, label: nil, number_of_lines: 0
 
-  @spec get(Chip.t()) :: t()
+  @spec get(Chip.t()) :: {:ok, t()}
   def get(chip) do
     {name, label, lines} = Nif.get_info(chip)
     {:ok, %__MODULE__{name: to_charlist(name), label: to_charlist(label), number_of_lines: lines}}

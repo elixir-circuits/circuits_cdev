@@ -216,6 +216,74 @@ static ERL_NIF_TERM get_value_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM a
     return enif_make_tuple2(env, ok_atom, value);
 }
 
+static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+    char consumer[32];
+    int rv, flags, offset_list_len;
+
+    if (!argc != 5)
+        return enif_make_badarg(env);
+
+    if (!enif_get_list_length(env, argv[1], &offset_list_len))
+        return enif_make_atom(env, "bad_offset_list");
+
+    if (!enif_get_int(env, argv[3], &flags))
+        return enif_make_atom(env, "bad_flags");
+
+    struct gpiohandle_request *req = enif_alloc_resource(priv->gpiohandle_request_rt, sizeof(struct gpiohandle_request));
+
+    memset(req, 0, sizeof(struct gpiohandle_request));
+
+    req->flags = flags;
+    req->lines = offset_list_len;
+    strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
+
+    for (int i = 0; i < offset_list_len; i++) {
+        ERL_NIF_TERM head;
+        ERL_NIF_TERM tail;
+        int offset;
+
+        if (!enif_get_list_cell(env, argv[1], &head, &tail))
+            return enif_make_atom(env, "offset_list");
+
+        if (!enif_get_int(env, head, &offset))
+            return enif_make_atom(env, "offset_head");
+
+        req->lineoffsets[i] = offset;
+    }
+
+    for (int i = 0; i < offset_list_len; i++) {
+        ERL_NIF_TERM head;
+        ERL_NIF_TERM tail;
+        int default_value;
+
+        if (!enif_get_list_cell(env, argv[2], &head, &tail))
+            return enif_make_atom(env, "default_list");
+
+        if (!enif_get_int(env, head, &default_value))
+            return enif_make_atom(env, "default_head");
+
+        req->default_values[i] = default_value;
+    }
+
+    if (!enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) &chip))
+        return enif_make_atom(env, "bad_chip");
+
+    rv = ioctl(chip->fd, GPIO_GET_LINEHANDLE_IOCTL, req);
+    
+    if (rv < 0)
+        return enif_make_atom(env, "error"); // make better
+
+    ERL_NIF_TERM linehandle_resource = enif_make_resource(env, req);
+    enif_release_resource(req);
+
+    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
+
+    return enif_make_tuple2(env, ok_atom, linehandle_resource);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"open", 1, open_chip},
     {"close", 1, close_chip_nif},
@@ -223,7 +291,8 @@ static ErlNifFunc nif_funcs[] = {
     {"get_line_info", 2, get_line_info_nif},
     {"request_linehandle", 5, request_linehandle_nif},
     {"set_value", 2, set_value_nif},
-    {"get_value", 1, get_value_nif}
+    {"get_value", 1, get_value_nif},
+    {"request_linehandle_multi", 5, request_linehandle_multi_nif}
 };
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

@@ -266,6 +266,7 @@ int defaults_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TER
     return 0;
 }
 
+// clean up below code
 static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     struct cdev_priv *priv = enif_priv_data(env);
@@ -273,7 +274,7 @@ static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const
     char consumer[32];
     int rv, flags, offset_list_len;
 
-    if (!argc != 5)
+    if (argc != 5)
         return enif_make_badarg(env);
 
     if (!enif_get_list_length(env, argv[1], &offset_list_len))

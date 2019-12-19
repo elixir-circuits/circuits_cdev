@@ -18,14 +18,21 @@ defmodule Circuits.GPIO.Chip.LineHandle do
       |> Keyword.get(:consumer, "circuits_cdev")
       |> to_charlist()
 
-    # add `:default` to opts
+    # add opts for default
     default = 0
+
     # handle more flags in the future
     flags = flag_from_atom(direction)
 
     # better error handling
     {:ok, ref} =
-      Nif.request_linehandle(Line.chip(line), Line.offset(line), default, flags, consumer)
+      Nif.request_linehandle(
+        Line.chip(line),
+        Line.offset(line),
+        default,
+        flags,
+        consumer
+      )
 
     %__MODULE__{line: line, ref: ref}
   end

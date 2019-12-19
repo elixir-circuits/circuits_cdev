@@ -10,7 +10,7 @@ defmodule Circuits.GPIO.Chip.Line do
           }
 
   @enforce_keys [:chip, :offset]
-  defstruct chip: nil, request_handle: nil, offset: nil
+  defstruct chip: nil, offset: nil
 
   @spec new(Chip.t(), offset()) :: t()
   def new(chip, offset) do

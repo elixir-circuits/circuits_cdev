@@ -1,5 +1,5 @@
 defmodule Circuits.GPIO.Chip do
-  alias Circuits.GPIO.Chip.{Nif, Info, Line, LineHandle}
+  alias Circuits.GPIO.Chip.{Nif, Info, Line}
 
   @opaque t :: reference()
 
@@ -23,8 +23,9 @@ defmodule Circuits.GPIO.Chip do
   @spec get_line(t(), Line.offset()) :: Line.t()
   def get_line(chip, offset), do: Line.new(chip, offset)
 
-  @spec request_linehandle(t(), Line.offest(), LineHandle.direction(), keyword()) ::
-          LineHandle.t()
+  @spec get_lines(t(), [Line.offset()]) :: [Line.t()]
+  def get_lines(chip, offsets), do: Enum.map(offsets, fn offset -> Line.new(chip, offset) end)
+
   def request_linehandle(chip, offset, direction, opts \\ []) do
     chip
     |> Line.new(offset)

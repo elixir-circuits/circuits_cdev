@@ -216,6 +216,56 @@ static ERL_NIF_TERM get_value_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM a
     return enif_make_tuple2(env, ok_atom, value);
 }
 
+int offests_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TERM offsets)
+{
+    ERL_NIF_TERM head, tail;
+    ERL_NIF_TERM list = offsets;
+    int offsets_length;
+
+    if (!enif_get_list_length(env, offsets, &offsets_length))
+        return -1;
+
+    for (int i = 0; i < offsets_length; i++) {
+        int offset;
+        if (!enif_get_list_cell(env, list, &head, &tail))
+            return -1;
+
+        if (!enif_get_int(env, head, &offset))
+            return -1;
+
+        req->lineoffsets[i] = offset;
+
+        list = tail;
+    }
+
+    return 0;
+}
+
+int defaults_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TERM defaults)
+{
+    ERL_NIF_TERM head, tail;
+    ERL_NIF_TERM list = defaults;
+    int defaults_lengh;
+
+    if (!enif_get_list_length(env, defaults, &defaults_lengh))
+        return -1;
+
+    for (int i = 0; i < defaults_lengh; i++) {
+        int default_value;
+        if (!enif_get_list_cell(env, list, &head, &tail))
+            return -1;
+
+        if (!enif_get_int(env, head, &default_value))
+            return -1;
+
+        req->default_values[i] = default_value;
+
+        list = tail;
+    }
+
+    return 0;
+}
+
 static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     struct cdev_priv *priv = enif_priv_data(env);
@@ -240,41 +290,23 @@ static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const
     req->lines = offset_list_len;
     strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
 
-    for (int i = 0; i < offset_list_len; i++) {
-        ERL_NIF_TERM head;
-        ERL_NIF_TERM tail;
-        int offset;
+    if (offests_for_req(env, req, argv[1]) < 0)
+        return enif_make_atom(env, "bad_offset_setting");
 
-        if (!enif_get_list_cell(env, argv[1], &head, &tail))
-            return enif_make_atom(env, "offset_list");
-
-        if (!enif_get_int(env, head, &offset))
-            return enif_make_atom(env, "offset_head");
-
-        req->lineoffsets[i] = offset;
-    }
-
-    for (int i = 0; i < offset_list_len; i++) {
-        ERL_NIF_TERM head;
-        ERL_NIF_TERM tail;
-        int default_value;
-
-        if (!enif_get_list_cell(env, argv[2], &head, &tail))
-            return enif_make_atom(env, "default_list");
-
-        if (!enif_get_int(env, head, &default_value))
-            return enif_make_atom(env, "default_head");
-
-        req->default_values[i] = default_value;
-    }
+    if (defaults_for_req(env, req, argv[2]) < 0)
+        return enif_make_atom(env, "bad_defaults_setting");
 
     if (!enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **) &chip))
         return enif_make_atom(env, "bad_chip");
 
     rv = ioctl(chip->fd, GPIO_GET_LINEHANDLE_IOCTL, req);
     
-    if (rv < 0)
-        return enif_make_atom(env, "error"); // make better
+    if (rv < 0) {
+        ERL_NIF_TERM rv_ioctl = enif_make_int(env, rv);
+        ERL_NIF_TERM error_atom = enif_make_atom(env, "error");
+
+        return enif_make_tuple2(env, error_atom, rv_ioctl);
+    }
 
     ERL_NIF_TERM linehandle_resource = enif_make_resource(env, req);
     enif_release_resource(req);

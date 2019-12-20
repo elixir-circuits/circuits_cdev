@@ -301,7 +301,7 @@ static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const
         return enif_make_atom(env, "bad_chip");
 
     rv = ioctl(chip->fd, GPIO_GET_LINEHANDLE_IOCTL, req);
-    
+
     if (rv < 0) {
         ERL_NIF_TERM rv_ioctl = enif_make_int(env, rv);
         ERL_NIF_TERM error_atom = enif_make_atom(env, "error");
@@ -317,6 +317,44 @@ static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const
     return enif_make_tuple2(env, ok_atom, linehandle_resource);
 }
 
+static ERL_NIF_TERM set_values_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpiohandle_request *req;
+    struct gpiohandle_data data;
+    int rv, values_list_length;
+    ERL_NIF_TERM head, tail;
+
+    ERL_NIF_TERM new_values = argv[1];
+
+    if (argc != 2 || !enif_get_resource(env, argv[0], priv->gpiohandle_request_rt, (void **) &req))
+        return enif_make_badarg(env);
+
+    if (!enif_get_list_length(env, new_values, &values_list_length))
+        return enif_make_atom(env, "list_error");
+
+    for (int i = 0; i < values_list_length; i++) {
+        int new_value;
+
+        if (!enif_get_list_cell(env, new_values, &head, &tail))
+            return enif_make_atom(env, "list_cell_error");
+
+        if (!enif_get_int(env, head, &new_value))
+            return enif_make_atom(env, "new_value_error");
+
+        data.values[i] = new_value;
+
+        new_values = tail;
+    }
+
+    rv = ioctl(req->fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data);
+
+    if (rv < 0)
+        return enif_make_atom(env, "ioctl_error"); // make better
+
+    return enif_make_atom(env, "ok");
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"open", 1, open_chip},
     {"close", 1, close_chip_nif},
@@ -325,7 +363,8 @@ static ErlNifFunc nif_funcs[] = {
     {"request_linehandle", 5, request_linehandle_nif},
     {"set_value", 2, set_value_nif},
     {"get_value", 1, get_value_nif},
-    {"request_linehandle_multi", 5, request_linehandle_multi_nif}
+    {"request_linehandle_multi", 5, request_linehandle_multi_nif},
+    {"set_values", 2, set_value_nif}
 };
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

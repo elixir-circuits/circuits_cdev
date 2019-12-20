@@ -33,6 +33,10 @@ defmodule Circuits.GPIO.Chip.LineHandleMulti do
     %__MODULE__{lines: lines, ref: ref}
   end
 
+  def set_values(%__MODULE__{ref: handle}, values) do
+    Nif.set_values(handle, values)
+  end
+
   defp flag_from_atom(:input), do: 0x01
   defp flag_from_atom(:output), do: 0x02
 

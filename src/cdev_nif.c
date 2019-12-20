@@ -364,7 +364,7 @@ static ErlNifFunc nif_funcs[] = {
     {"set_value", 2, set_value_nif},
     {"get_value", 1, get_value_nif},
     {"request_linehandle_multi", 5, request_linehandle_multi_nif},
-    {"set_values", 2, set_value_nif}
+    {"set_values", 2, set_values_nif}
 };
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

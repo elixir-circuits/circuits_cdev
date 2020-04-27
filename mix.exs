@@ -10,6 +10,7 @@ defmodule CircuitsCdev.MixProject do
       make_targets: ["all"],
       make_clean: ["clean"],
       start_permanent: Mix.env() == :prod,
+      build_embedded: true,
       deps: deps()
     ]
   end
@@ -24,7 +25,7 @@ defmodule CircuitsCdev.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:elixir_make, "~> 0.4", runtime: false}
+      {:elixir_make, "~> 0.6", runtime: false}
     ]
   end
 end

@@ -1,4 +1,5 @@
 defmodule Circuits.GPIO.Chip.Info do
+  @moduledoc false
   alias Circuits.GPIO.Chip
   alias Circuits.GPIO.Chip.Nif
 

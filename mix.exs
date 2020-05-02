@@ -18,14 +18,16 @@ defmodule CircuitsCdev.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger],
+      mod: {Circuits.GPIO.Chip.Application, []}
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:elixir_make, "~> 0.6", runtime: false}
+      {:elixir_make, "~> 0.6", runtime: false},
+      {:ex_doc, "~> 0.21.3", only: :docs, runtime: false}
     ]
   end
 end

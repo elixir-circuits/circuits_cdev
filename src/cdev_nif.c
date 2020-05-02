@@ -5,6 +5,8 @@
 #include <unistd.h>
 
 #include <errno.h>
+
+#include <errno.h>
 #include <stdio.h>
 
 #include "erl_nif.h"
@@ -13,6 +15,8 @@ struct cdev_priv
 {
     ErlNifResourceType *gpio_chip_rt;
     ErlNifResourceType *gpiohandle_request_rt;
+    ErlNifResourceType *gpioevent_request_rt;
+    ErlNifResourceType *gpioevent_data_rt;
 };
 
 struct gpio_chip
@@ -34,6 +38,25 @@ static void linehandle_request_dtor(ErlNifEnv *env, void *obj)
     close(req->fd);
 }
 
+static void lineevent_data_dtor(ErlNifEnv *env, void *obj)
+{
+    // what should we do here?
+    struct gpioevent_data *event_data = (struct gpioevent_data *)obj;
+}
+
+static void gpioevent_data_dtor(ErlNifEnv *env, void *obj)
+{
+    // what should we do here?
+    struct gpioevent_data *event_data = (struct gpioevent_data *)obj;
+}
+
+static void event_request_dtor(ErlNifEnv *env, void *obj)
+{
+    struct gpioevent_request *event_request = (struct gpioevent_request *)obj;
+
+    close(event_request->fd);
+}
+
 static int load(ErlNifEnv *env, void **priv_data, const ERL_NIF_TERM info)
 {
     (void)info;
@@ -46,8 +69,15 @@ static int load(ErlNifEnv *env, void **priv_data, const ERL_NIF_TERM info)
 
     priv->gpio_chip_rt = enif_open_resource_type(env, NULL, "gpio_chip", gpio_chip_dtor, ERL_NIF_RT_CREATE, NULL);
     priv->gpiohandle_request_rt = enif_open_resource_type(env, NULL, "gpiohandle_request", linehandle_request_dtor, ERL_NIF_RT_CREATE, NULL);
+    priv->gpioevent_data_rt = enif_open_resource_type(env, NULL, "gpioevent_data", lineevent_data_dtor, ERL_NIF_RT_CREATE, NULL);
+    priv->gpioevent_request_rt = enif_open_resource_type(env, NULL, "gpioevent_request", event_request_dtor, ERL_NIF_RT_CREATE, NULL);
 
     if (priv->gpio_chip_rt == NULL)
+    {
+        return 2;
+    }
+
+    if (priv->gpioevent_request_rt == NULL)
     {
         return 2;
     }
@@ -269,6 +299,58 @@ int defaults_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TER
     return 0;
 }
 
+static ERL_NIF_TERM request_lineevent_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+    int flags, lineoffset;
+    char consumer[32];
+
+    if (argc != 5)
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip))
+        return enif_make_badarg(env);
+
+    if (!enif_get_int(env, argv[1], &lineoffset))
+        return enif_make_badarg(env);
+
+    if (!enif_get_int(env, argv[2], &flags))
+        return enif_make_badarg(env);
+
+    if (!enif_get_string(env, argv[3], consumer, sizeof(consumer), ERL_NIF_LATIN1))
+        return enif_make_badarg(env);
+
+    struct gpioevent_request *req = enif_alloc_resource(priv->gpioevent_request_rt, sizeof(struct gpioevent_request));
+    memset(req, 0, sizeof(struct gpioevent_request));
+
+    req->lineoffset = lineoffset;
+    req->handleflags = GPIOHANDLE_REQUEST_INPUT; // Output does not make sense here
+    req->eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
+    strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
+
+    int rv = ioctl(chip->fd, GPIO_GET_LINEEVENT_IOCTL, req);
+
+    if (rv < 0)
+        return enif_make_string(env, strerror(errno), ERL_NIF_LATIN1); // make better
+
+    ///////// SELECT //////
+
+    struct gpioevent_data *data = enif_alloc_resource(priv->gpioevent_data_rt, sizeof(struct gpioevent_data));
+    memset(data, 0, sizeof(struct gpioevent_data));
+    int select_rv = enif_select(env, req->fd, ERL_NIF_SELECT_READ, data, NULL, argv[4]);
+
+    if (select_rv < 0)
+        return enif_make_int(env, select_rv); // make better
+
+    ERL_NIF_TERM lineevent_resource = enif_make_resource(env, req);
+    enif_release_resource(req);
+
+    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
+
+    return enif_make_tuple2(env, ok_atom, lineevent_resource);
+}
+
 // clean up below code
 static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
@@ -360,6 +442,35 @@ static ERL_NIF_TERM set_values_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
     return enif_make_atom(env, "ok");
 }
 
+static ERL_NIF_TERM read_interrupt_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct cdev_priv *priv = enif_priv_data(env);
+    if (argc != 3)
+        return enif_make_badarg(env);
+
+    struct gpioevent_request *req;
+
+    if (!enif_get_resource(env, argv[1], priv->gpioevent_request_rt, (void **)&req))
+        return enif_make_badarg(env);
+
+    struct gpioevent_data data;
+
+    read(req->fd, &data, sizeof(data));
+
+    ERL_NIF_TERM id = enif_make_int(env, data.id);
+    ERL_NIF_TERM timestamp = enif_make_int(env, data.timestamp);
+
+    ///////// SELECT //////
+
+    // struct gpioevent_data *new_data = enif_alloc_resource(priv->gpioevent_data_rt, sizeof(struct gpioevent_data));
+    int select_rv = enif_select(env, req->fd, ERL_NIF_SELECT_READ, (void *)argv[0], NULL, argv[2]);
+
+    if (select_rv < 0)
+        return enif_make_int(env, select_rv); // make better
+
+    return enif_make_tuple2(env, id, timestamp);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"open", 1, open_chip},
     {"close", 1, close_chip_nif},
@@ -369,6 +480,9 @@ static ErlNifFunc nif_funcs[] = {
     {"set_value", 2, set_value_nif},
     {"get_value", 1, get_value_nif},
     {"request_linehandle_multi", 5, request_linehandle_multi_nif},
-    {"set_values", 2, set_values_nif}};
+    {"request_lineevent", 5, request_lineevent_nif},
+    {"read_interrupt", 3, read_interrupt_nif},
+    {"set_values", 2, set_values_nif}
+};
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

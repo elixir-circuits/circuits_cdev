@@ -1,4 +1,5 @@
 defmodule Circuits.GPIO.Chip.LineInfo do
+  @moduledoc false
   alias Circuits.GPIO.Chip.Nif
 
   @type flags :: :kernel | :is_out | :active_low | :open_drain | :open_sourced

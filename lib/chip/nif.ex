@@ -1,4 +1,6 @@
 defmodule Circuits.GPIO.Chip.Nif do
+  @moduledoc false
+
   @on_load {:load_nif, 0}
   @compile {:autoload, false}
 
@@ -32,6 +34,10 @@ defmodule Circuits.GPIO.Chip.Nif do
     :erlang.nif_error(:nif_not_loaded)
   end
 
+  def request_lineevent(_chip, _line_offset, _flags, _consumer, _ref) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
   def set_value(_handle, _value) do
     :erlang.nif_error(:nif_not_loaded)
   end
@@ -41,6 +47,10 @@ defmodule Circuits.GPIO.Chip.Nif do
   end
 
   def get_value(_handle) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  def read_interrupt(_event_data, _handle_ref, _event_ref) do
     :erlang.nif_error(:nif_not_loaded)
   end
 end

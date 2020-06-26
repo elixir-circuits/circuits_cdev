@@ -57,6 +57,7 @@ ERL_CFLAGS ?= -I$(ERL_EI_INCLUDE_DIR)
 ERL_LDFLAGS ?= -L$(ERL_EI_LIBDIR) -lei
 
 SRC = src/cdev_nif.c
+HEADERS =$(wildcard src/*.h)
 OBJ = $(SRC:src/%.c=$(BUILD)/%.o)
 
 calling_from_make:
@@ -66,7 +67,7 @@ all: install
 
 install: $(PREFIX) $(BUILD) $(NIF)
 
-$(OBJ): Makefile
+$(OBJ): $(HEADERS) Makefile
 
 $(BUILD)/%.o: src/%.c
 	$(CC) -c $(ERL_CFLAGS) $(CFLAGS) -o $@ $<

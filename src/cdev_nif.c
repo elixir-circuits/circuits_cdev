@@ -247,7 +247,7 @@ static ERL_NIF_TERM get_value_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM a
     return enif_make_tuple2(env, ok_atom, value);
 }
 
-int offests_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TERM offsets)
+int offsets_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TERM offsets)
 {
     ERL_NIF_TERM head, tail;
     ERL_NIF_TERM list = offsets;
@@ -277,12 +277,12 @@ int defaults_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TER
 {
     ERL_NIF_TERM head, tail;
     ERL_NIF_TERM list = defaults;
-    int defaults_lengh;
+    int defaults_length;
 
-    if (!enif_get_list_length(env, defaults, &defaults_lengh))
+    if (!enif_get_list_length(env, defaults, &defaults_length))
         return -1;
 
-    for (int i = 0; i < defaults_lengh; i++)
+    for (int i = 0; i < defaults_length; i++)
     {
         int default_value;
         if (!enif_get_list_cell(env, list, &head, &tail))
@@ -376,7 +376,7 @@ static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const
     req->lines = offset_list_len;
     strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
 
-    if (offests_for_req(env, req, argv[1]) < 0)
+    if (offsets_for_req(env, req, argv[1]) < 0)
         return enif_make_atom(env, "bad_offset_setting");
 
     if (defaults_for_req(env, req, argv[2]) < 0)

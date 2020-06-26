@@ -45,7 +45,7 @@ defmodule Circuits.GPIO.Chip.InterruptServer do
   def handle_info({:select, data_ref, event_ref, :ready_input}, events_handles) do
     case EventsHandles.get_handle_for_event(events_handles, event_ref) do
       nil ->
-        Logger.warn("Wut you talkin' about Willis?")
+        Logger.warn("What are you talking about Willis?")
         {:noreply, events_handles}
 
       {offset, handle_ref, opts} ->

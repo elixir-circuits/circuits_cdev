@@ -1,488 +1,305 @@
+#include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <linux/gpio.h>
-#include <string.h>
-#include <unistd.h>
 
-#include <errno.h>
+#include "cdev_nif.h"
+#include "enif_gpio_common.h"
+#include "gpio_chip.h"
 
-#include <errno.h>
-#include <stdio.h>
-
-#include "erl_nif.h"
-
-struct cdev_priv
+static void chip_res_destructor(ErlNifEnv *env, void *res)
 {
-    ErlNifResourceType *gpio_chip_rt;
-    ErlNifResourceType *gpiohandle_request_rt;
-    ErlNifResourceType *gpioevent_request_rt;
-    ErlNifResourceType *gpioevent_data_rt;
-};
-
-struct gpio_chip
-{
-    int fd;
-};
-
-static void gpio_chip_dtor(ErlNifEnv *env, void *obj)
-{
-    struct gpio_chip *chip = (struct gpio_chip *)obj;
-
-    close(chip->fd);
+    chip_close((struct gpio_chip *) res);
 }
 
-static void linehandle_request_dtor(ErlNifEnv *env, void *obj)
+static void line_res_destructor(ErlNifEnv *env, void *res)
 {
-    struct gpiohandle_request *req = (struct gpiohandle_request *)obj;
-
-    close(req->fd);
+    chip_line_handle_close((struct gpio_chip_line_handle *) res);
 }
 
-static void lineevent_data_dtor(ErlNifEnv *env, void *obj)
+static void event_res_destructor(ErlNifEnv *env, void *res)
 {
-    // what should we do here?
-    struct gpioevent_data *event_data = (struct gpioevent_data *)obj;
+    chip_event_handle_close((struct gpio_chip_event_handle *) res);
 }
 
-static void gpioevent_data_dtor(ErlNifEnv *env, void *obj)
+static void event_data_res_destructor(ErlNifEnv *env, void *res) {}
+
+static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM info)
 {
-    // what should we do here?
-    struct gpioevent_data *event_data = (struct gpioevent_data *)obj;
-}
+    chip_priv_t *priv = enif_alloc(sizeof(chip_priv_t));
 
-static void event_request_dtor(ErlNifEnv *env, void *obj)
-{
-    struct gpioevent_request *event_request = (struct gpioevent_request *)obj;
-
-    close(event_request->fd);
-}
-
-static int load(ErlNifEnv *env, void **priv_data, const ERL_NIF_TERM info)
-{
-    (void)info;
-    struct cdev_priv *priv = enif_alloc(sizeof(struct cdev_priv));
-
-    if (!priv)
-    {
+    if (!priv) {
         return 1;
     }
 
-    priv->gpio_chip_rt = enif_open_resource_type(env, NULL, "gpio_chip", gpio_chip_dtor, ERL_NIF_RT_CREATE, NULL);
-    priv->gpiohandle_request_rt = enif_open_resource_type(env, NULL, "gpiohandle_request", linehandle_request_dtor, ERL_NIF_RT_CREATE, NULL);
-    priv->gpioevent_data_rt = enif_open_resource_type(env, NULL, "gpioevent_data", lineevent_data_dtor, ERL_NIF_RT_CREATE, NULL);
-    priv->gpioevent_request_rt = enif_open_resource_type(env, NULL, "gpioevent_request", event_request_dtor, ERL_NIF_RT_CREATE, NULL);
+    priv->atom_error = enif_make_atom(env, "error");
+    priv->atom_ok = enif_make_atom(env, "ok");
 
-    if (priv->gpio_chip_rt == NULL)
-    {
-        return 2;
-    }
+    priv->gpio_chip_rt = enif_open_resource_type(env, NULL, "gpio_chip", chip_res_destructor, ERL_NIF_RT_CREATE, NULL);
+    priv->gpio_chip_line_handle_rt = enif_open_resource_type(env, NULL, "gpio_line_handle", line_res_destructor, ERL_NIF_RT_CREATE, NULL);
+    priv->gpio_chip_event_handle_rt= enif_open_resource_type(env, NULL, "gpio_event_handle", event_res_destructor, ERL_NIF_RT_CREATE, NULL);
+    priv->gpio_chip_event_data_rt = enif_open_resource_type(env, NULL, "gpio_event_data", event_data_res_destructor, ERL_NIF_RT_CREATE, NULL);
 
-    if (priv->gpioevent_request_rt == NULL)
-    {
-        return 2;
-    }
-
-    *priv_data = (void *)priv;
+    *priv_data = (void *) priv;
 
     return 0;
 }
 
-static ERL_NIF_TERM open_chip(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM chip_open_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    struct cdev_priv *priv = enif_priv_data(env);
+    chip_priv_t *priv = enif_priv_data(env);
     char chip_path[16];
     memset(&chip_path, '\0', sizeof(chip_path));
+
     if (!enif_get_string(env, argv[0], chip_path, sizeof(chip_path), ERL_NIF_LATIN1))
-    {
         return enif_make_badarg(env);
-    }
 
     struct gpio_chip *chip = enif_alloc_resource(priv->gpio_chip_rt, sizeof(struct gpio_chip));
 
-    chip->fd = open(chip_path, O_RDWR);
-
-    ERL_NIF_TERM chip_resource = enif_make_resource(env, chip);
-    enif_release_resource(chip);
-
-    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
-
-    return enif_make_tuple2(env, ok_atom, chip_resource);
-}
-
-static ERL_NIF_TERM get_info_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpio_chip *chip;
-    struct gpiochip_info info;
-
-    if (argc != 1 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip))
-        return enif_make_badarg(env);
-
-    int rv = ioctl(chip->fd, GPIO_GET_CHIPINFO_IOCTL, &info);
+    int rv = chip_open(chip, chip_path);
 
     if (rv < 0)
-    {
-        return enif_make_atom(env, "error");
-    }
+        return common_make_error(env, enif_make_atom(env, "open_failed"));
 
-    ERL_NIF_TERM chip_name = enif_make_string(env, info.name, ERL_NIF_LATIN1);
-    ERL_NIF_TERM chip_label = enif_make_string(env, info.label, ERL_NIF_LATIN1);
-    ERL_NIF_TERM number_lines = enif_make_int(env, (int)info.lines);
+    ERL_NIF_TERM chip_res = common_make_and_release_resource(env, chip);
 
-    return enif_make_tuple3(env, chip_name, chip_label, number_lines);
+    return enif_make_tuple2(env, priv->atom_ok, chip_res);
 }
 
-static ERL_NIF_TERM close_chip_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM get_chip_info_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    struct cdev_priv *priv = enif_priv_data(env);
+    chip_priv_t *priv = enif_priv_data(env);
     struct gpio_chip *chip;
 
     if (argc != 1 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip))
         return enif_make_badarg(env);
 
-    close(chip->fd);
-    chip->fd = -1;
+    int rv = chip_get_info(chip);
 
-    return enif_make_atom(env, "ok");
+    if (rv < 0)
+        return common_make_error(env, enif_make_atom(env, "info_get_failed"));
+
+    ERL_NIF_TERM name = enif_make_string(env, chip->name, ERL_NIF_LATIN1);
+    ERL_NIF_TERM label = enif_make_string(env, chip->label, ERL_NIF_LATIN1);
+    ERL_NIF_TERM number_lines = enif_make_int(env, (int)chip->num_lines);
+
+    return enif_make_tuple4(env, priv->atom_ok, name, label, number_lines);
 }
 
 static ERL_NIF_TERM get_line_info_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    struct cdev_priv *priv = enif_priv_data(env);
+    chip_priv_t *priv = enif_priv_data(env);
     struct gpio_chip *chip;
-    struct gpioline_info info;
-    int rv, offset;
+    int offset;
 
-    if (argc != 2 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip) || !enif_get_int(env, argv[1], &offset))
+    if (argc != 2
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip)
+            || !enif_get_int(env, argv[1], &offset))
         return enif_make_badarg(env);
 
-    info.line_offset = offset;
+    struct gpio_chip_line_info line_info;
 
-    rv = ioctl(chip->fd, GPIO_GET_LINEINFO_IOCTL, &info);
+    int rv = chip_get_line_info(chip, offset, &line_info);
 
-    ERL_NIF_TERM flags = enif_make_int(env, info.flags);
-    ERL_NIF_TERM name = enif_make_string(env, info.name, ERL_NIF_LATIN1);
-    ERL_NIF_TERM consumer = enif_make_string(env, info.consumer, ERL_NIF_LATIN1);
+    if (rv == -1)
+        return common_make_error(env, enif_make_atom(env, "line_info_get_failed"));
 
-    return enif_make_tuple3(env, flags, name, consumer);
+    ERL_NIF_TERM direction = enif_make_int(env, line_info.direction);
+    ERL_NIF_TERM active_low = enif_make_int(env, line_info.active_low);
+    ERL_NIF_TERM name = enif_make_string(env, line_info.name, ERL_NIF_LATIN1);
+    ERL_NIF_TERM consumer = enif_make_string(env, line_info.consumer, ERL_NIF_LATIN1);
+
+    return enif_make_tuple5(env, priv->atom_ok, name, consumer, direction, active_low);
 }
 
-/**
- * Will update to do many offsets, just going this route while doing
- * initial development
- */
-static ERL_NIF_TERM request_linehandle_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM listen_event_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpio_chip *chip;
-    char consumer[32];
-    int rv, lineoffset, flags, default_value;
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip_event_handle *handle;
+    struct gpio_chip_event_data *data;
 
-    if (argc != 5 || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip) || !enif_get_int(env, argv[1], &lineoffset) || !enif_get_int(env, argv[2], &default_value) || !enif_get_int(env, argv[3], &flags) || !enif_get_string(env, argv[4], consumer, sizeof(consumer), ERL_NIF_LATIN1))
+    if (argc != 3
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_event_handle_rt, (void **)&handle)
+            || !enif_get_resource(env, argv[1], priv->gpio_chip_event_data_rt, (void **)&data))
         return enif_make_badarg(env);
 
-    struct gpiohandle_request *req = enif_alloc_resource(priv->gpiohandle_request_rt, sizeof(struct gpiohandle_request));
-
-    memset(req, 0, sizeof(struct gpiohandle_request));
-
-    req->flags = flags;
-    req->lines = 1;
-    req->lineoffsets[0] = lineoffset;
-    req->default_values[0] = default_value;
-    strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
-
-    rv = ioctl(chip->fd, GPIO_GET_LINEHANDLE_IOCTL, req);
-
-    if (rv < 0)
-        return enif_make_atom(env, "error"); // make better
-
-    ERL_NIF_TERM linehandle_resource = enif_make_resource(env, req);
-    enif_release_resource(req);
-
-    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
-
-    return enif_make_tuple2(env, ok_atom, linehandle_resource);
-}
-
-static ERL_NIF_TERM set_value_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpiohandle_request *req;
-    struct gpiohandle_data data;
-    int rv, new_value;
-
-    if (argc != 2 || !enif_get_resource(env, argv[0], priv->gpiohandle_request_rt, (void **)&req) || !enif_get_int(env, argv[1], &new_value))
-        return enif_make_badarg(env);
-
-    data.values[0] = new_value;
-
-    rv = ioctl(req->fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data);
-
-    if (rv < 0)
-        return enif_make_atom(env, "error"); // make better
-
-    return enif_make_atom(env, "ok");
-}
-
-static ERL_NIF_TERM get_value_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpiohandle_request *req;
-    struct gpiohandle_data data;
-    int rv;
-
-    if (argc != 1 || !enif_get_resource(env, argv[0], priv->gpiohandle_request_rt, (void **)&req))
-        return enif_make_badarg(env);
-
-    memset(&data, 0, sizeof(data));
-
-    rv = ioctl(req->fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &data);
-
-    if (rv < 0)
-        return enif_make_atom(env, "error"); // make better
-
-    ERL_NIF_TERM value = enif_make_int(env, data.values[0]);
-    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
-
-    return enif_make_tuple2(env, ok_atom, value);
-}
-
-int offsets_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TERM offsets)
-{
-    ERL_NIF_TERM head, tail;
-    ERL_NIF_TERM list = offsets;
-    int offsets_length;
-
-    if (!enif_get_list_length(env, offsets, &offsets_length))
-        return -1;
-
-    for (int i = 0; i < offsets_length; i++)
-    {
-        int offset;
-        if (!enif_get_list_cell(env, list, &head, &tail))
-            return -1;
-
-        if (!enif_get_int(env, head, &offset))
-            return -1;
-
-        req->lineoffsets[i] = offset;
-
-        list = tail;
-    }
-
-    return 0;
-}
-
-int defaults_for_req(ErlNifEnv *env, struct gpiohandle_request *req, ERL_NIF_TERM defaults)
-{
-    ERL_NIF_TERM head, tail;
-    ERL_NIF_TERM list = defaults;
-    int defaults_length;
-
-    if (!enif_get_list_length(env, defaults, &defaults_length))
-        return -1;
-
-    for (int i = 0; i < defaults_length; i++)
-    {
-        int default_value;
-        if (!enif_get_list_cell(env, list, &head, &tail))
-            return -1;
-
-        if (!enif_get_int(env, head, &default_value))
-            return -1;
-
-        req->default_values[i] = default_value;
-
-        list = tail;
-    }
-
-    return 0;
-}
-
-static ERL_NIF_TERM request_lineevent_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpio_chip *chip;
-    int flags, lineoffset;
-    char consumer[32];
-
-    if (argc != 5)
-        return enif_make_badarg(env);
-
-    if (!enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip))
-        return enif_make_badarg(env);
-
-    if (!enif_get_int(env, argv[1], &lineoffset))
-        return enif_make_badarg(env);
-
-    if (!enif_get_int(env, argv[2], &flags))
-        return enif_make_badarg(env);
-
-    if (!enif_get_string(env, argv[3], consumer, sizeof(consumer), ERL_NIF_LATIN1))
-        return enif_make_badarg(env);
-
-    struct gpioevent_request *req = enif_alloc_resource(priv->gpioevent_request_rt, sizeof(struct gpioevent_request));
-    memset(req, 0, sizeof(struct gpioevent_request));
-
-    req->lineoffset = lineoffset;
-    req->handleflags = GPIOHANDLE_REQUEST_INPUT; // Output does not make sense here
-    req->eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
-    strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
-
-    int rv = ioctl(chip->fd, GPIO_GET_LINEEVENT_IOCTL, req);
-
-    if (rv < 0)
-        return enif_make_string(env, strerror(errno), ERL_NIF_LATIN1); // make better
-
-    ///////// SELECT //////
-
-    struct gpioevent_data *data = enif_alloc_resource(priv->gpioevent_data_rt, sizeof(struct gpioevent_data));
-    memset(data, 0, sizeof(struct gpioevent_data));
-    int select_rv = enif_select(env, req->fd, ERL_NIF_SELECT_READ, data, NULL, argv[4]);
+    int select_rv = enif_select(env, handle->fd, ERL_NIF_SELECT_READ, data, NULL, argv[2]);
 
     if (select_rv < 0)
-        return enif_make_int(env, select_rv); // make better
+        return common_make_error(env, enif_make_atom(env, "failed_to_listen_for_events"));
 
-    ERL_NIF_TERM lineevent_resource = enif_make_resource(env, req);
-    enif_release_resource(req);
-
-    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
-
-    return enif_make_tuple2(env, ok_atom, lineevent_resource);
+    return priv->atom_ok;
 }
 
-// clean up below code
-static ERL_NIF_TERM request_linehandle_multi_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM make_event_data_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpio_chip *chip;
-    char consumer[32];
-    int rv, flags, offset_list_len;
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip_event_handle *handle;
 
-    if (argc != 5)
+    if (argc != 1
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_event_handle_rt, (void **)&handle))
         return enif_make_badarg(env);
 
-    if (!enif_get_list_length(env, argv[1], &offset_list_len))
-        return enif_make_atom(env, "bad_offset_list");
+    struct enif_event_data *data = enif_alloc_resource(priv->gpio_chip_event_data_rt, sizeof(struct gpio_chip_event_data));
+    memset(data, 0, sizeof(struct gpio_chip_event_data));
 
-    if (!enif_get_int(env, argv[3], &flags))
-        return enif_make_atom(env, "bad_flags");
+    ERL_NIF_TERM data_res = common_make_and_release_resource(env, data);
 
-    struct gpiohandle_request *req = enif_alloc_resource(priv->gpiohandle_request_rt, sizeof(struct gpiohandle_request));
+    return enif_make_tuple2(env, priv->atom_ok, data_res);
+}
 
-    memset(req, 0, sizeof(struct gpiohandle_request));
+static ERL_NIF_TERM read_event_data_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip_event_handle *handle;
+    struct gpio_chip_event_data *event_data;
 
-    req->flags = flags;
-    req->lines = offset_list_len;
-    strncpy(req->consumer_label, consumer, sizeof(req->consumer_label) - 1);
+    if (argc != 2
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_event_handle_rt, (void **)&handle)
+            || !enif_get_resource(env, argv[1], priv->gpio_chip_event_data_rt, (void **)&event_data))
+        return enif_make_badarg(env);
 
-    if (offsets_for_req(env, req, argv[1]) < 0)
-        return enif_make_atom(env, "bad_offset_setting");
+    int rv = chip_read_event_data(handle, event_data);
 
-    if (defaults_for_req(env, req, argv[2]) < 0)
-        return enif_make_atom(env, "bad_defaults_setting");
+    if (rv != 0)
+        return common_make_error(env, enif_make_atom(env, "read_event_data_failed"));
 
-    if (!enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip))
-        return enif_make_atom(env, "bad_chip");
+    ERL_NIF_TERM value = enif_make_int(env, event_data->id);
+    ERL_NIF_TERM timestamp = enif_make_int(env, event_data->timestamp);
 
-    rv = ioctl(chip->fd, GPIO_GET_LINEHANDLE_IOCTL, req);
+    return enif_make_tuple3(env, priv->atom_ok, value, timestamp);
 
-    if (rv < 0)
-    {
-        ERL_NIF_TERM rv_ioctl = enif_make_int(env, rv);
-        ERL_NIF_TERM error_atom = enif_make_atom(env, "error");
+    return priv->atom_ok;
+}
 
-        return enif_make_tuple2(env, error_atom, rv_ioctl);
+static ERL_NIF_TERM read_values_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip_line_handle *handle;
+
+    if (argc != 1 || !enif_get_resource(env, argv[0], priv->gpio_chip_line_handle_rt, (void **)&handle))
+        return enif_make_badarg(env);
+
+    int buff[handle->num_lines];
+
+    int rv = chip_read_values(handle, buff);
+
+    if (rv != 0)
+        return common_make_error(env, enif_make_atom(env, "read_values_failed"));
+
+    ERL_NIF_TERM term_array[handle->num_lines];
+
+    for (int i = 0; i < handle->num_lines; i++) {
+        ERL_NIF_TERM value = enif_make_int(env, buff[i]);
+        term_array[i] = value;
     }
 
-    ERL_NIF_TERM linehandle_resource = enif_make_resource(env, req);
-    enif_release_resource(req);
+    ERL_NIF_TERM values_list = enif_make_list_from_array(env, term_array, handle->num_lines);
 
-    ERL_NIF_TERM ok_atom = enif_make_atom(env, "ok");
+    return enif_make_tuple2(env, priv->atom_ok, values_list);
+}
 
-    return enif_make_tuple2(env, ok_atom, linehandle_resource);
+static ERL_NIF_TERM request_event_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+    int offset;
+
+    if (argc != 2
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip)
+            || !enif_get_int(env, argv[1], &offset))
+        return enif_make_badarg(env);
+
+    struct gpio_chip_event_handle *handle = enif_alloc_resource(priv->gpio_chip_event_handle_rt, sizeof(struct gpio_chip_event_handle));
+
+    int rv = chip_request_event(chip, offset, handle);
+
+    if (rv != 0)
+        return common_make_error(env, enif_make_atom(env, "event_request_failed"));
+
+    ERL_NIF_TERM handle_res = common_make_and_release_resource(env, handle);
+
+    return enif_make_tuple2(env, priv->atom_ok, handle_res);
+}
+
+static ERL_NIF_TERM request_lines_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip *chip;
+    int direction;
+    int num_offsets;
+
+    if (argc != 3
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_rt, (void **)&chip)
+            || !enif_get_int(env, argv[2], &direction)
+            || !enif_get_list_length(env, argv[1], &num_offsets))
+        return enif_make_badarg(env);
+
+    int offsets_array[num_offsets];
+
+    int pv = common_make_int_array_from_list(env, argv[1], num_offsets, offsets_array);
+
+    if (pv != 0)
+        return enif_make_badarg(env);
+
+    struct gpio_chip_line_handle *line_handle = enif_alloc_resource(priv->gpio_chip_line_handle_rt, sizeof(struct gpio_chip_line_handle));
+
+    line_handle->num_lines = num_offsets;
+
+    int rv = chip_request_lines(chip, offsets_array, direction, line_handle);
+
+    if (rv != 0)
+        return common_make_error(env, enif_make_atom(env, "lines_request_failed"));
+
+    ERL_NIF_TERM line_handle_res = common_make_and_release_resource(env, line_handle);
+
+    return enif_make_tuple2(env, priv->atom_ok, line_handle_res);
 }
 
 static ERL_NIF_TERM set_values_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    struct cdev_priv *priv = enif_priv_data(env);
-    struct gpiohandle_request *req;
-    struct gpiohandle_data data;
-    int rv, values_list_length;
-    ERL_NIF_TERM head, tail;
+    chip_priv_t *priv = enif_priv_data(env);
+    struct gpio_chip_line_handle *handle;
+    int num_values;
 
-    ERL_NIF_TERM new_values = argv[1];
-
-    if (argc != 2 || !enif_get_resource(env, argv[0], priv->gpiohandle_request_rt, (void **)&req))
+    if (argc != 2
+            || !enif_get_resource(env, argv[0], priv->gpio_chip_line_handle_rt, (void **)&handle)
+            || !enif_get_list_length(env, argv[1], &num_values))
         return enif_make_badarg(env);
 
-    if (!enif_get_list_length(env, new_values, &values_list_length))
-        return enif_make_atom(env, "list_error");
-
-    for (int i = 0; i < values_list_length; i++)
-    {
-        int new_value;
-
-        if (!enif_get_list_cell(env, new_values, &head, &tail))
-            return enif_make_atom(env, "list_cell_error");
-
-        if (!enif_get_int(env, head, &new_value))
-            return enif_make_atom(env, "new_value_error");
-
-        data.values[i] = new_value;
-
-        new_values = tail;
+    if (handle->num_lines != num_values) {
+        ERL_NIF_TERM msg = enif_make_atom(env, "different_number_of_lines");
+        ERL_NIF_TERM err = enif_make_tuple3(env, msg, handle->num_lines, num_values);
+        return common_make_error(env, err);
     }
 
-    rv = ioctl(req->fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data);
+    int values_array[num_values];
 
-    if (rv < 0)
-        return enif_make_atom(env, "ioctl_error"); // make better
+    int ar = common_make_int_array_from_list(env, argv[1], num_values, values_array);
 
-    return enif_make_atom(env, "ok");
-}
+    if (ar != 0)
+        return common_make_error(env, enif_make_atom(env, "failed_to_parse_values_list"));
 
-static ERL_NIF_TERM read_interrupt_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    struct cdev_priv *priv = enif_priv_data(env);
-    if (argc != 3)
-        return enif_make_badarg(env);
+    int rv = chip_set_values(handle, values_array);
 
-    struct gpioevent_request *req;
+    if (rv != 0)
+        return common_make_error(env, enif_make_atom(env, "failed_to_set_values"));
 
-    if (!enif_get_resource(env, argv[1], priv->gpioevent_request_rt, (void **)&req))
-        return enif_make_badarg(env);
-
-    struct gpioevent_data data;
-
-    read(req->fd, &data, sizeof(data));
-
-    ERL_NIF_TERM id = enif_make_int(env, data.id);
-    ERL_NIF_TERM timestamp = enif_make_int(env, data.timestamp);
-
-    ///////// SELECT //////
-
-    // struct gpioevent_data *new_data = enif_alloc_resource(priv->gpioevent_data_rt, sizeof(struct gpioevent_data));
-    int select_rv = enif_select(env, req->fd, ERL_NIF_SELECT_READ, (void *)argv[0], NULL, argv[2]);
-
-    if (select_rv < 0)
-        return enif_make_int(env, select_rv); // make better
-
-    return enif_make_tuple2(env, id, timestamp);
+    return priv->atom_ok;
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"open", 1, open_chip},
-    {"close", 1, close_chip_nif},
-    {"get_info", 1, get_info_nif},
-    {"get_line_info", 2, get_line_info_nif},
-    {"request_linehandle", 5, request_linehandle_nif},
-    {"set_value", 2, set_value_nif},
-    {"get_value", 1, get_value_nif},
-    {"request_linehandle_multi", 5, request_linehandle_multi_nif},
-    {"request_lineevent", 5, request_lineevent_nif},
-    {"read_interrupt", 3, read_interrupt_nif},
-    {"set_values", 2, set_values_nif}
+    {"chip_open_nif", 1, chip_open_nif, 0},
+    {"get_chip_info_nif", 1, get_chip_info_nif, 0},
+    {"get_line_info_nif", 2, get_line_info_nif, 0},
+    {"listen_event_nif", 3, listen_event_nif, 0},
+    {"make_event_data_nif", 1, make_event_data_nif, 0},
+    {"read_event_data_nif", 2, read_event_data_nif, 0},
+    {"read_values_nif", 1, read_values_nif, 0},
+    {"request_event_nif", 2, request_event_nif, 0},
+    {"request_lines_nif", 3, request_lines_nif, 0},
+    {"set_values_nif", 2, set_values_nif, 0}
 };
 
 ERL_NIF_INIT(Elixir.Circuits.GPIO.Chip.Nif, nif_funcs, load, NULL, NULL, NULL)

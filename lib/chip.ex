@@ -1,148 +1,184 @@
 defmodule Circuits.GPIO.Chip do
-  alias Circuits.GPIO.Chip.{Nif, InterruptServer}
+  @moduledoc """
+  Control GPIOs using the GPIO chip interface
 
-  @opaque t :: reference()
+  With the character device driver for GPIOs there three concepts to learn.
 
-  @opaque line_handle :: reference()
+  First, the API is made up of chips and lines that are grouped together for
+  that chip. A chip is more of a grouping identifier than anything physical
+  property about the board.
 
-  @type direction :: :input | :output
+  Secondly, the API requires us to request lines from a GPIO chip. The reason
+  for this is the kernel can provide control over who "owns" that line and
+  prevent multiple programs from trying to control the same GPIO pin.
 
-  @type offset :: non_neg_integer()
+  Lastly, you can listen for events on a line. These events report if the line
+  is high or low.
+
+  Generally speaking the character device driver allows more fine grain control
+  and more reliability than the `sysfs` API.
+  """
+
+  alias Circuits.GPIO.Chip.{Events, LineHandle, LineInfo, Nif}
+
+  @type t() :: %__MODULE__{
+          name: String.t(),
+          label: String.t(),
+          number_of_lines: non_neg_integer(),
+          reference: reference()
+        }
+
+  @typedoc """
+  Explain offset
+  """
+  @type offset() :: non_neg_integer()
+
+  @typedoc """
+  Explain offset value
+  """
+  @type offset_value() :: 0 | 1
+
+  @typedoc """
+  Explain line direction
+  """
+  @type line_direction() :: :input | :output
+
+  defstruct name: nil, label: nil, number_of_lines: 0, reference: nil
 
   @doc """
-  Open a GPIO chip
-
-  This is a string in the format of `"gpiochipN"` where `N` is the chip number
-  that you want to work with.
+  Getting information about a line
   """
-  @spec open(String.t()) :: {:ok, t()}
-  def open(device) do
-    device
-    |> normalize_dev_path()
-    |> to_charlist()
-    |> Nif.open()
+  @spec get_line_info(t(), offset()) :: {:ok, LineInfo.t()} | {:error, atom()}
+  def get_line_info(%__MODULE__{} = chip, offset) do
+    case Nif.get_line_info_nif(chip.reference, offset) do
+      {:ok, name, consumer, direction, active_low} ->
+        {:ok,
+         %LineInfo{
+           offset: offset,
+           name: to_string(name),
+           consumer: to_string(consumer),
+           direction: direction_to_atom(direction),
+           active_low: active_low_int_to_bool(active_low)
+         }}
+
+      error ->
+        error
+    end
   end
 
   @doc """
-  Close a GPIO chip
   """
-  @spec close(t()) :: :ok
-  def close(chip) do
-    Nif.close(chip)
+  @spec listen_event(t() | String.t(), offset()) :: :ok
+  def listen_event(%__MODULE__{} = chip, offset) do
+    Events.listen_event(chip, offset)
+  end
+
+  def listen_event(chip_name, offset) when is_binary(chip_name) do
+    case open(chip_name) do
+      {:ok, chip} -> listen_event(chip, offset)
+    end
   end
 
   @doc """
-  Request control of a single GPIO line
+  Open a GPIO Chip
 
   ```elixir
-  {:ok, handle} = Circuits.GPIO.Chip.Lines.request_handle(chip, 16, :output)
   ```
   """
-  @spec request_line(t(), offset(), direction(), keyword()) :: {:ok, line_handle()}
-  def request_line(chip, offset_or_offsets, direction, opts \\ [])
+  @spec open(String.t()) :: {:ok, t()}
+  def open(chip_name) do
+    chip_name = Path.join("/dev", chip_name)
+    {:ok, ref} = Nif.chip_open_nif(to_charlist(chip_name))
+    {:ok, name, label, number_of_lines} = Nif.get_chip_info_nif(ref)
 
-  def request_line(chip, offset, direction, opts) when is_integer(offset) do
-    consumer =
-      opts
-      |> Keyword.get(:consumer, "circuits_cdev")
-      |> to_charlist()
-
-    # add opts for default
-    default = 0
-
-    # handle more flags in the future
-    flags = flag_from_atom(direction)
-
-    # better error handling
-    Nif.request_linehandle(
-      chip,
-      offset,
-      default,
-      flags,
-      consumer
-    )
-  end
-
-  def request_line(_, offsets, _, _) when is_list(offsets) do
-    raise ArgumentError, """
-    Looks like you are trying to request control for many GPIO lines.
-
-    Use `Circuits.GPIO.Chip.request_lines/3` instead.
-    """
+    {:ok,
+     %__MODULE__{
+       name: to_string(name),
+       label: to_string(label),
+       number_of_lines: number_of_lines,
+       reference: ref
+     }}
   end
 
   @doc """
-  Request a line handle to control many GPIO lines
+  Read value from a line handle
   """
-  @spec request_lines(t(), [offset()], direction(), keyword()) :: {:ok, line_handle()}
-  def request_lines(chip, offsets, direction, opts \\ [])
+  @spec read_value(LineHandle.t()) :: {:ok, offset_value()} | {:error, atom()}
+  def read_value(line_handle) do
+    case read_values(line_handle) do
+      {:ok, [value]} ->
+        {:ok, value}
 
-  def request_lines(chip, offsets, direction, opts) when is_list(offsets) do
-    defaults = get_defaults(opts, length(offsets))
-
-    # handle more flags in the future
-    flags = flag_from_atom(direction)
-
-    consumer =
-      opts
-      |> Keyword.get(:consumer, "circuits_cdev")
-      |> to_charlist()
-
-    Nif.request_linehandle_multi(
-      chip,
-      offsets,
-      defaults,
-      flags,
-      consumer
-    )
-  end
-
-  def request_lines(_, offset, _, _) when is_integer(offset) do
-    raise ArgumentError, """
-    Looks like you are trying to control a single GPIO line.
-
-    Use `Circuits.GPIO.Chip.request_line/3` instead.
-    """
+      error ->
+        error
+    end
   end
 
   @doc """
-  trigger = :rising | :falling | :both
+  Read values for a line handle
   """
-  def set_interrupt(chip, offset, trigger, opts \\ []) do
-    InterruptServer.set_interrupt(chip, offset, trigger, opts)
+  @spec read_values(LineHandle.t()) :: {:ok, [offset_value()]} | {:error, atom()}
+  def read_values(line_handle) do
+    %LineHandle{handle: handle} = line_handle
+
+    Nif.read_values_nif(handle)
   end
 
-  @spec get_value(line_handle()) :: 0 | 1
-  def get_value(handle), do: Nif.get_value(handle)
+  @doc """
+  Request a line handle for a single line
+  """
+  @spec request_line(t() | String.t(), offset(), line_direction()) :: {:ok, LineHandle.t()}
+  def request_line(%__MODULE__{} = chip, offset, direction) do
+    request_lines(chip, [offset], direction)
+  end
 
-  @spec set_value(line_handle(), 0 | 1) :: :ok
-  def set_value(handle, value), do: Nif.set_value(handle, value)
-
-  @spec set_values(line_handle(), [0 | 1]) :: :ok
-  def set_values(handle, values), do: Nif.set_values(handle, values)
-
-  defp normalize_dev_path(dev_path) do
-    if String.contains?(dev_path, "/dev") do
-      dev_path
-    else
-      Path.join("/dev", dev_path)
+  def request_line(chip_name, offset, direction) when is_binary(chip_name) do
+    case open(chip_name) do
+      {:ok, chip} ->
+        request_lines(chip, [offset], direction)
     end
   end
 
-  defp flag_from_atom(:input), do: 0x01
-  defp flag_from_atom(:output), do: 0x02
+  @doc """
+  Request a line handle for many lines
+  """
+  @spec request_lines(t() | String.t(), [offset()], line_direction()) :: {:ok, LineHandle.t()}
+  def request_lines(%__MODULE__{} = chip, offsets, direction) do
+    {:ok, handle} = Nif.request_lines_nif(chip.reference, offsets, direction_from_atom(direction))
 
-  defp get_defaults(opts, defaults_length) do
-    case Keyword.get(opts, :defaults) do
-      nil ->
-        for _ <- 1..defaults_length, do: 0
+    {:ok, %LineHandle{chip: chip, handle: handle}}
+  end
 
-      defaults ->
-        if length(defaults) == defaults_length do
-          defaults
-        else
-          raise ArgumentError
-        end
+  def request_lines(chip_name, offsets, direction) when is_binary(chip_name) do
+    case open(chip_name) do
+      {:ok, chip} ->
+        request_lines(chip, offsets, direction)
     end
   end
+
+  @doc """
+  ASDF
+  """
+  @spec set_value(LineHandle.t(), offset_value()) :: :ok | {:error, atom()}
+  def set_value(handle, value) do
+    set_values(handle, [value])
+  end
+
+  @doc """
+  Set values of the GPIO lines
+  """
+  @spec set_values(LineHandle.t(), [offset_value()]) :: :ok | {:error, atom()}
+  def set_values(line_handle, values) do
+    %LineHandle{handle: handle} = line_handle
+    Nif.set_values_nif(handle, values)
+  end
+
+  defp direction_from_atom(:input), do: 0
+  defp direction_from_atom(:output), do: 1
+
+  defp direction_to_atom(0), do: :input
+  defp direction_to_atom(1), do: :output
+
+  defp active_low_int_to_bool(0), do: false
+  defp active_low_int_to_bool(1), do: true
 end

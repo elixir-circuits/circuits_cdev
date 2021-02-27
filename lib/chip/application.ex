@@ -5,7 +5,7 @@ defmodule Circuits.GPIO.Chip.Application do
 
   def start(_type, _args) do
     children = [
-      Circuits.GPIO.Chip.InterruptServer
+      Circuits.GPIO.Chip.Events
     ]
 
     opts = [strategy: :rest_for_one, name: Circuits.GPIO.Chip.Supervisor]

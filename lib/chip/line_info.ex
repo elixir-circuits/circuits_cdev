@@ -1,22 +1,17 @@
 defmodule Circuits.GPIO.Chip.LineInfo do
-  @moduledoc false
-  alias Circuits.GPIO.Chip.Nif
+  @moduledoc """
+  Line information
+  """
 
-  @type flags :: :kernel | :is_out | :active_low | :open_drain | :open_sourced
+  alias Circuits.GPIO.Chip
 
-  defstruct line: nil, name: nil, consumer: nil, flags: nil
+  @type t() :: %__MODULE__{
+          offset: Chip.offset(),
+          name: String.t(),
+          consumer: String.t(),
+          active_low: boolean(),
+          direction: Chip.line_direction()
+        }
 
-  def get(chip, line) do
-    {flags, name, consumer} = Nif.get_line_info(chip, line)
-
-    %__MODULE__{
-      line: line,
-      name: charlist_to_string_or_nil(name),
-      consumer: charlist_to_string_or_nil(consumer),
-      flags: flags
-    }
-  end
-
-  defp charlist_to_string_or_nil([]), do: nil
-  defp charlist_to_string_or_nil(charlist), do: to_string(charlist)
+  defstruct offset: nil, name: nil, consumer: nil, active_low: nil, direction: nil
 end

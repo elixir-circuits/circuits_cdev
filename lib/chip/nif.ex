@@ -1,8 +1,12 @@
 defmodule Circuits.GPIO.Chip.Nif do
   @moduledoc false
 
+  # Lower level nif bindings
+
   @on_load {:load_nif, 0}
   @compile {:autoload, false}
+
+  alias Circuits.GPIO.Chip
 
   def load_nif() do
     nif_binary = Application.app_dir(:circuits_cdev, "priv/cdev_nif")
@@ -10,47 +14,92 @@ defmodule Circuits.GPIO.Chip.Nif do
     :erlang.load_nif(to_charlist(nif_binary), 0)
   end
 
-  def open(_chip_device) do
+  @doc """
+  Open a GPIO chip
+  """
+  @spec chip_open_nif(charlist()) :: {:ok, reference()} | {:error, atom}
+  def chip_open_nif(_path) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def close(_chip) do
+  @doc """
+  Get the information about a chip
+  """
+  @spec get_chip_info_nif(reference()) ::
+          {:ok, name :: charlist(), label :: charlist(), num_lines :: non_neg_integer()}
+          | {:error, atom()}
+  def get_chip_info_nif(_chip_ref) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def get_info(_chip_ref) do
+  @doc """
+  Get the information about a line
+  """
+  @spec get_line_info_nif(reference(), Chip.offset()) ::
+          {:ok, name :: charlist(), consumer :: charlist(), active_low :: non_neg_integer(),
+           open_drain :: non_neg_integer()}
+          | {:error, atom()}
+  def get_line_info_nif(_chip_ref, _offset) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def get_line_info(_chip, _line_offset) do
+  @doc """
+  Listen for an event
+
+  This function requires an event handle and a event data resource.
+  """
+  @spec listen_event_nif(reference(), reference(), reference()) :: :ok | {:error, atom()}
+  def listen_event_nif(_event_handle, _event_data, _ref) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def request_linehandle(_chip, _lineoffset, _default_value, _flags, _consumer) do
+  @doc """
+  Get an event data resource to be used with for listening for events.
+  """
+  @spec make_event_data_nif(reference()) :: {:ok, reference()} | {:error, atom()}
+  def make_event_data_nif(_event_handle) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def request_linehandle_multi(_chip, _lineoffsets, _defaults, _flags, _consumer) do
+  @doc """
+  Read the event data from the event handle
+  """
+  @spec read_event_data_nif(reference(), reference()) ::
+          {:ok, value :: non_neg_integer(), timestamp :: non_neg_integer()} | {:error, atom()}
+  def read_event_data_nif(_event_handle, _event_data) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def request_lineevent(_chip, _line_offset, _flags, _consumer, _ref) do
+  @doc """
+  Read a list of values from the line handle
+  """
+  @spec read_values_nif(reference()) :: {:ok, [Chip.offset_value()]} | {:error, atom()}
+  def read_values_nif(_line_handle_ref) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def set_value(_handle, _value) do
+  @doc """
+  Request an event handle to be used for listening for events
+  """
+  @spec request_event_nif(reference(), Chip.offset()) :: {:ok, reference()} | {:error, atom()}
+  def request_event_nif(_chip_ref, _offset) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def set_values(_handle, _values) do
+  @doc """
+  Request lines to control
+  """
+  @spec request_lines_nif(reference(), [Chip.offset()], 0 | 1) ::
+          {:ok, reference()} | {:error, atom()}
+  def request_lines_nif(_chip_ref, _offset, _direction) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def get_value(_handle) do
-    :erlang.nif_error(:nif_not_loaded)
-  end
-
-  def read_interrupt(_event_data, _handle_ref, _event_ref) do
+  @doc """
+  Set the values of the GPIO line(s)
+  """
+  @spec set_values_nif(reference(), [Chip.offset_value()]) :: :ok | {:error, atom()}
+  def set_values_nif(_handle_ref, _values) do
     :erlang.nif_error(:nif_not_loaded)
   end
 end

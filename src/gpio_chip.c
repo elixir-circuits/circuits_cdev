@@ -60,7 +60,7 @@ void chip_line_handle_close(struct gpio_chip_line_handle *handle) {
     close(handle->handle_fd);
 }
 
-int chip_get_line_info(struct gpio_chip *chip, int offset, struct gpio_chip_line_info *enif_line_info)
+int chip_get_line_info(struct gpio_chip *chip, int offset, struct gpio_chip_line_info *line_info)
 {
     struct gpioline_info info;
 
@@ -73,16 +73,16 @@ int chip_get_line_info(struct gpio_chip *chip, int offset, struct gpio_chip_line
     if (rv < 0)
         return -1;
 
-    enif_line_info->direction = info.flags & GPIOLINE_FLAG_IS_OUT
+    line_info->direction = info.flags & GPIOLINE_FLAG_IS_OUT
                                 ? GPIO_CHIP_LINE_OUTPUT
                                 : GPIO_CHIP_LINE_INPUT;
 
-    enif_line_info->active_low = info.flags & GPIOLINE_FLAG_ACTIVE_LOW
+    line_info->active_low = info.flags & GPIOLINE_FLAG_ACTIVE_LOW
                                  ? GPIO_CHIP_ACTIVE_LOW
                                  : GPIO_CHIP_ACTIVE_HIGH;
 
-    strncpy(enif_line_info->name, info.name, sizeof(enif_line_info->name));
-    strncpy(enif_line_info->consumer, info.consumer, sizeof(enif_line_info->consumer));
+    strncpy(line_info->name, info.name, sizeof(line_info->name));
+    strncpy(line_info->consumer, info.consumer, sizeof(line_info->consumer));
 
     return 0;
 }

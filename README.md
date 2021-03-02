@@ -90,7 +90,7 @@ Circuits.GPIO.Chip.listen_event("gpiochip0", 27)
 When an event is received from the line it will be in the form of:
 
 ```
-{:circuits_cdev, pin_number, new_value, timestamp}
+{:circuits_cdev, pin_number, timestamp, new_value}
 ```
 
 

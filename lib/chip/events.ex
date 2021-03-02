@@ -50,7 +50,8 @@ defmodule Circuits.GPIO.Chip.Events do
     %Event{
       handle: event_handle,
       listener: listener,
-      last_event: last_event
+      last_event: last_event,
+      offset: offset
     } = event = Map.fetch!(state, event_ref)
 
     {:ok, event_value, timestamp} = Nif.read_event_data_nif(event_handle, event_data_ref)
@@ -58,7 +59,7 @@ defmodule Circuits.GPIO.Chip.Events do
     if event_value != last_event do
       send(
         listener,
-        {:circuits_gpio_chip, :event, event_value_to_offset_value(event_value), timestamp}
+        {:circuits_cdev, offset, timestamp, event_value_to_offset_value(event_value)}
       )
     end
 

@@ -97,7 +97,7 @@ int chip_read_event_data(struct gpio_chip_event_handle *handle, struct gpio_chip
         return -1;
 
     data->timestamp = event_data.timestamp;
-    data->id = (int)event_data.id;
+    data->id = event_data.id;
 
     return 0;
 }

@@ -166,7 +166,7 @@ static ERL_NIF_TERM read_event_data_nif(ErlNifEnv *env, int argc, const ERL_NIF_
         return common_make_error(env, enif_make_atom(env, "read_event_data_failed"));
 
     ERL_NIF_TERM value = enif_make_int(env, event_data->id);
-    ERL_NIF_TERM timestamp = enif_make_int(env, event_data->timestamp);
+    ERL_NIF_TERM timestamp = enif_make_uint64(env, event_data->timestamp);
 
     return enif_make_tuple3(env, priv->atom_ok, value, timestamp);
 

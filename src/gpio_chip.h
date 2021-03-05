@@ -5,6 +5,7 @@
 #define GPIO_CHIP_H
 
 #include <linux/gpio.h>
+#include <stdint.h>
 #include "erl_nif.h"
 
 #define GPIO_CHIP_LINE_INPUT 0x00
@@ -44,7 +45,7 @@ struct gpio_chip_event_handle {
  * Struct for event data
  */
 struct gpio_chip_event_data {
-    int timestamp;
+    uint64_t timestamp;
     int id;
 };
 

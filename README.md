@@ -89,8 +89,18 @@ Circuits.GPIO.Chip.listen_event("gpiochip0", 27)
 
 When an event is received from the line it will be in the form of:
 
-```
+```elixir
 {:circuits_cdev, pin_number, timestamp, new_value}
 ```
 
+The `timestamp` is the unix time in nanoseconds. In order to convert it into a
+`DateTime` you will need to pass the `:nanoseconds` as the unit to
+`DateTime.from_unix/3` function:
 
+```elixir
+DateTime.from_unix(timestamp, :nanoseconds)
+{:ok, ~U[1990-07-24 07:30:03.123456Z]}
+```
+
+Also when calculating the time delta between two events keep in mind the
+difference will be nanoseconds.

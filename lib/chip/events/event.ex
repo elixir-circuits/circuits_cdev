@@ -1,6 +1,8 @@
 defmodule Circuits.GPIO.Chip.Events.Event do
   @moduledoc false
 
+  alias Circuits.GPIO.Chip
+
   @type t() :: %__MODULE__{
           handle: reference(),
           listener: pid(),

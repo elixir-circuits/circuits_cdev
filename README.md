@@ -1,5 +1,8 @@
 # circuits_cdev
 
+[![CircleCI](https://circleci.com/gh/elixir-circuits/circuits_cdev.svg?style=svg)](https://circleci.com/gh/elixir-circuits/circuits_cdev)
+
+
 Character device GPIO library for Elixir.
 
 WARNING: This is under active development and not all features or bugs are worked

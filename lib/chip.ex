@@ -29,17 +29,39 @@ defmodule Circuits.GPIO.Chip do
         }
 
   @typedoc """
-  Explain offset
+  The offset of the pin
+
+  An offset is the pin number provided. Normally these are labeled `GPIO N` or
+  `GPIO_N` where `N` is the pin number. For example, if you wanted to use to
+  use `GPIO 17` on a Raspberry PI the offset value would be `17`.
+
+  More resources:
+
+  Raspberry PI: https://pinout.xyz/
+  Beaglebone: https://beagleboard.org/Support/bone101
   """
   @type offset() :: non_neg_integer()
 
   @typedoc """
-  Explain offset value
+  The value of the offset
+
+  This is either 0 for low or off, or 1 for high or on.
   """
   @type offset_value() :: 0 | 1
 
   @typedoc """
-  Explain line direction
+  The direction of the line
+
+  With the character device you drive a line with configured offsets. These
+  offsets all share a direction, either `:output` or `:input`, which is called
+  the line direction.
+
+  The `:output` direction means you control the GPIOs by setting the value of
+  the GPIOs to 1 or 0. See `Circuits.GPIO.Chip.set_value/2` for more
+  information.
+
+  The `:input` direction means you can only read the current value of the GPIOs
+  on the line. See `Circuits.GPIO.Chip.read_value/1` for more information.
   """
   @type line_direction() :: :input | :output
 
@@ -67,6 +89,20 @@ defmodule Circuits.GPIO.Chip do
   end
 
   @doc """
+  Listen to line events on the line offset
+
+  ```elixir
+  Circuits.GPIO.Chip.listen_event(mygpio_chip, 24)
+  # cause the offset to change value
+  flush
+  {:circuits_cdev, 24, timestamp, new_value}
+  ```
+
+  The timestamp will be in nanoseconds so as you do time calculations and
+  conversions be sure to take that into account.
+
+  The `new_value` will be the value the offset value changed to either `1` or
+  `0`.
   """
   @spec listen_event(t() | String.t(), offset()) :: :ok
   def listen_event(%__MODULE__{} = chip, offset) do
@@ -83,6 +119,7 @@ defmodule Circuits.GPIO.Chip do
   Open a GPIO Chip
 
   ```elixir
+  {:ok, chip} = Circuits.GPIO.Chip.open(gpiochip_device)
   ```
   """
   @spec open(String.t()) :: {:ok, t()}
@@ -102,6 +139,17 @@ defmodule Circuits.GPIO.Chip do
 
   @doc """
   Read value from a line handle
+
+  This is useful when you have a line handle that contains only one GPIO
+  offset.
+
+  If you want to read multiple GPIOs at once see
+  `Circuits.GPIO.Chip.read_values/1`.
+
+  ```elixir
+  {:ok, line_handle} = Circuits.GPIO.Chip.request_line("gpiochip0", 17)
+  {:ok, 0} = Circuits.GPIO.Chip.read_value(line_handle)
+  ```
   """
   @spec read_value(LineHandle.t()) :: {:ok, offset_value()} | {:error, atom()}
   def read_value(line_handle) do
@@ -116,6 +164,19 @@ defmodule Circuits.GPIO.Chip do
 
   @doc """
   Read values for a line handle
+
+  This is useful when you a line handle that contains multiple GPIO offsets.
+
+  ```elixir
+  {:ok, line_handle} = Circuits.GPIO.Chip.request_lines("gpiochip0", [17, 22, 23, 24])
+  {:ok, [0, 0, 0, 0]} = Circuits.GPIO.Chip.read_values(line_handle)
+  ```
+
+  Note that the values in the list match the index order of how the offsets were
+  requested.
+
+  Note that the order of the values returned return the order that the offsets
+  were requested.
   """
   @spec read_values(LineHandle.t()) :: {:ok, [offset_value()]} | {:error, atom()}
   def read_values(line_handle) do
@@ -125,7 +186,15 @@ defmodule Circuits.GPIO.Chip do
   end
 
   @doc """
-  Request a line handle for a single line
+  Request a line handle for a single GPIO offset
+
+
+  ```elixir
+  {:ok, line_handle} = Circuits.GPIO.Chip.request_line(my_gpio_chip, 17, :output)
+  ```
+
+  See `Circuits.GPIO.Chip.request_lines/3` and `Circuits.GPIO.LineHandle` for
+  more details about line handles.
   """
   @spec request_line(t() | String.t(), offset(), line_direction()) :: {:ok, LineHandle.t()}
   def request_line(%__MODULE__{} = chip, offset, direction) do
@@ -140,7 +209,19 @@ defmodule Circuits.GPIO.Chip do
   end
 
   @doc """
-  Request a line handle for many lines
+  Request a line handle for multiple GPIO offsets
+
+  ```elixir
+  {:ok, line_handle} = Circuits.GPIO.Chip.request_lines(my_gpio_chip, [17, 24], :output)
+  ```
+
+  For the GPIO character device driver you drive GPIOs by requesting for a line
+  handle what contains one or more GPIO offsets. The line handle is mechanism
+  by which you can read and set the values of the GPIO(s). The line handle is
+  attached to the calling process and kernel will not allow others to control
+  the GPIO(s) that are part of that the line handle. Moreover, one the process
+  that requested the line handle goes away the kernel will be able to
+  automatically free the system resources that were tied to that line handle.
   """
   @spec request_lines(t() | String.t(), [offset()], line_direction()) :: {:ok, LineHandle.t()}
   def request_lines(%__MODULE__{} = chip, offsets, direction) do
@@ -157,7 +238,14 @@ defmodule Circuits.GPIO.Chip do
   end
 
   @doc """
-  ASDF
+  Set the value of the GPIO
+
+  ```elixir
+  {:ok, line_handle} = Circuits.GPIO.Chip.request_lines(my_gpio_chip, 17)
+  {:ok, 0} = Circuits.GPIO.Chip.read_value(line_handle)
+  :ok = Circuits.GPIO.Chip.set_value(line_handle, 1)
+  {:ok, 1} = Circuits.GPIO.Chip.read_value(line_handle)
+  ```
   """
   @spec set_value(LineHandle.t(), offset_value()) :: :ok | {:error, atom()}
   def set_value(handle, value) do
@@ -165,7 +253,18 @@ defmodule Circuits.GPIO.Chip do
   end
 
   @doc """
-  Set values of the GPIO lines
+  Set values of the GPIOs
+
+  ```elixir
+  {:ok, line_handle} = Circuits.GPIO.Chip.request_lines(my_gpio_chip, [17, 24, 22])
+  {:ok, [0, 0, 0]} = Circuits.GPIO.Chip.read_value(line_handle)
+  :ok = Circuits.GPIO.Chip.set_value(line_handle, [1, 0, 1])
+  {:ok, [1, 0, 1]} = Circuits.GPIO.Chip.read_value(line_handle)
+  ```
+
+  Note that the order of the values that were sent matches the order by which
+  the GPIO offsets where requested. In the example above offset 17 was set to
+  1, offset 24 was stayed at 0, offset 22 was set to 1.
   """
   @spec set_values(LineHandle.t(), [offset_value()]) :: :ok | {:error, atom()}
   def set_values(line_handle, values) do

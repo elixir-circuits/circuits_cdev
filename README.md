@@ -5,9 +5,6 @@
 
 Character device GPIO library for Elixir.
 
-WARNING: This is under active development and not all features or bugs are worked
-out yet, if you want to use GPIOs in Elixir please see [circuits_gpio](https://github.com/elixir-circuits/circuits_gpio).
-
 Since Linux 4.8 the `sysfs` interface is deprecated in preference of the
 character device GPIO API.
 

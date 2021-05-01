@@ -24,13 +24,6 @@ config :example,
 
 ![Circuit Example rpi0](assets/cdev_example_rpi0.png)
 
-## Notes
-
-In the latest Nerves system the character device driver will not work, so this
-example ensures that we use the `1.13` series systems to make sure the Linux
-headers support the GPIO character driver. Once the Nerves systems update to a
-capable Linux header version this project will be updated.
-
 ## Targets
 
 Nerves applications produce images for hardware targets based on the

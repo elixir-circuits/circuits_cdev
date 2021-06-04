@@ -3,7 +3,7 @@ defmodule Example do
 
   use GenServer
 
-  alias Circuits.GPIO.Chip
+  alias Circuits.Cdev
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
@@ -16,25 +16,25 @@ defmodule Example do
     led2 = Keyword.get(args, :led2, 22)
     button = Keyword.get(args, :button, 27)
 
-    {:ok, line} = Chip.request_lines(chip, [led1, led2], :output)
+    {:ok, line} = Cdev.request_lines(chip, [led1, led2], :output)
 
     # Set initial values led1 will be on and led2 will be off
-    :ok = Chip.set_values(line, [1, 0])
+    :ok = Cdev.set_values(line, [1, 0])
 
-    :ok = Chip.listen_event("gpiochip0", button)
+    :ok = Cdev.listen_event("gpiochip0", button)
 
     {:ok, line}
   end
 
   @impl GenServer
   def handle_info({:circuits_cdev, 27, _timestamp, 1}, line) do
-    Chip.set_values(line, [0, 1])
+    Cdev.set_values(line, [0, 1])
 
     {:noreply, line}
   end
 
   def handle_info({:circuits_cdev, 27, _timestamp, 0}, line) do
-    Chip.set_values(line, [1, 0])
+    Cdev.set_values(line, [1, 0])
 
     {:noreply, line}
   end

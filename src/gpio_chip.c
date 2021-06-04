@@ -202,4 +202,3 @@ int chip_set_values(struct gpio_chip_line_handle *handle, int values[])
 
     return 0;
 }
-

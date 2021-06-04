@@ -1,4 +1,4 @@
-defmodule Circuits.GPIO.Chip.Nif do
+defmodule Circuits.Cdev.Nif do
   @moduledoc false
 
   # Lower level nif bindings
@@ -6,7 +6,7 @@ defmodule Circuits.GPIO.Chip.Nif do
   @on_load {:load_nif, 0}
   @compile {:autoload, false}
 
-  alias Circuits.GPIO.Chip
+  alias Circuits.Cdev
 
   def load_nif() do
     nif_binary = Application.app_dir(:circuits_cdev, "priv/cdev_nif")
@@ -35,7 +35,7 @@ defmodule Circuits.GPIO.Chip.Nif do
   @doc """
   Get the information about a line
   """
-  @spec get_line_info_nif(reference(), Chip.offset()) ::
+  @spec get_line_info_nif(reference(), Cdev.offset()) ::
           {:ok, name :: charlist(), consumer :: charlist(), active_low :: non_neg_integer(),
            open_drain :: non_neg_integer()}
           | {:error, atom()}
@@ -73,7 +73,7 @@ defmodule Circuits.GPIO.Chip.Nif do
   @doc """
   Read a list of values from the line handle
   """
-  @spec read_values_nif(reference()) :: {:ok, [Chip.offset_value()]} | {:error, atom()}
+  @spec read_values_nif(reference()) :: {:ok, [Cdev.offset_value()]} | {:error, atom()}
   def read_values_nif(_line_handle_ref) do
     :erlang.nif_error(:nif_not_loaded)
   end
@@ -81,7 +81,7 @@ defmodule Circuits.GPIO.Chip.Nif do
   @doc """
   Request an event handle to be used for listening for events
   """
-  @spec request_event_nif(reference(), Chip.offset()) :: {:ok, reference()} | {:error, atom()}
+  @spec request_event_nif(reference(), Cdev.offset()) :: {:ok, reference()} | {:error, atom()}
   def request_event_nif(_chip_ref, _offset) do
     :erlang.nif_error(:nif_not_loaded)
   end
@@ -89,7 +89,7 @@ defmodule Circuits.GPIO.Chip.Nif do
   @doc """
   Request lines to control
   """
-  @spec request_lines_nif(reference(), [Chip.offset()], 0 | 1) ::
+  @spec request_lines_nif(reference(), [Cdev.offset()], 0 | 1) ::
           {:ok, reference()} | {:error, atom()}
   def request_lines_nif(_chip_ref, _offset, _direction) do
     :erlang.nif_error(:nif_not_loaded)
@@ -98,7 +98,7 @@ defmodule Circuits.GPIO.Chip.Nif do
   @doc """
   Set the values of the GPIO line(s)
   """
-  @spec set_values_nif(reference(), [Chip.offset_value()]) :: :ok | {:error, atom()}
+  @spec set_values_nif(reference(), [Cdev.offset_value()]) :: :ok | {:error, atom()}
   def set_values_nif(_handle_ref, _values) do
     :erlang.nif_error(:nif_not_loaded)
   end

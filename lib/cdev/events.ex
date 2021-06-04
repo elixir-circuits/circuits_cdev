@@ -1,11 +1,11 @@
-defmodule Circuits.GPIO.Chip.Events do
+defmodule Circuits.Cdev.Events do
   @moduledoc false
 
   use GenServer
 
-  alias Circuits.GPIO.Chip
-  alias Circuits.GPIO.Chip.Nif
-  alias Circuits.GPIO.Chip.Events.Event
+  alias Circuits.Cdev
+  alias Circuits.Cdev.Nif
+  alias Circuits.Cdev.Events.Event
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -14,7 +14,7 @@ defmodule Circuits.GPIO.Chip.Events do
   @doc """
   Listen to line events on the offset
   """
-  @spec listen_event(Chip.t(), Chip.offset()) :: :ok
+  @spec listen_event(Cdev.chip(), Cdev.offset()) :: :ok
   def listen_event(chip, offset) do
     GenServer.call(__MODULE__, {:listen_event, chip, offset, self()})
   end

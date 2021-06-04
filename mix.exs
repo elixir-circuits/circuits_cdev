@@ -30,12 +30,12 @@ defmodule Circuits.Cdev.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Circuits.GPIO.Chip.Application, []}
+      mod: {Circuits.Cdev.Application, []}
     ]
   end
 
   defp description do
-    "Use GPIOs in Elixir"
+    "Drive GPIOs using the Linux cdev interface"
   end
 
   defp package do

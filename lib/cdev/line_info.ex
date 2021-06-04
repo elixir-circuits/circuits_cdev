@@ -1,16 +1,16 @@
-defmodule Circuits.GPIO.Chip.LineInfo do
+defmodule Circuits.Cdev.LineInfo do
   @moduledoc """
   Line information
   """
 
-  alias Circuits.GPIO.Chip
+  alias Circuits.Cdev
 
   @type t() :: %__MODULE__{
-          offset: Chip.offset(),
+          offset: Cdev.offset(),
           name: String.t(),
           consumer: String.t(),
           active_low: boolean(),
-          direction: Chip.line_direction()
+          direction: Cdev.line_direction()
         }
 
   defstruct offset: nil, name: nil, consumer: nil, active_low: nil, direction: nil

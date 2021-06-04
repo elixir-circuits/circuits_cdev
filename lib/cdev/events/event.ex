@@ -1,13 +1,13 @@
-defmodule Circuits.GPIO.Chip.Events.Event do
+defmodule Circuits.Cdev.Events.Event do
   @moduledoc false
 
-  alias Circuits.GPIO.Chip
+  alias Circuits.Cdev
 
   @type t() :: %__MODULE__{
           handle: reference(),
           listener: pid(),
-          offset: Chip.offset(),
-          chip: Chip.t(),
+          offset: Cdev.offset(),
+          chip: Cdev.chip(),
           last_event: non_neg_integer()
         }
 

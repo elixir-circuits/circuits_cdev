@@ -31,3 +31,8 @@ if Mix.target() == :host or Mix.target() == :"" do
 else
   import_config "target.exs"
 end
+
+# Import a dev config if available
+if Mix.env() == :dev and File.exists?("config/dev.exs") do
+  import_config "dev.exs"
+end

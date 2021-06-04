@@ -38,20 +38,20 @@ end
 First request a line handle from the GPIO chip:
 
 ```elixir
-{:ok, line_handle} = Circuits.GPIO.Chip.request_line("gpiochip0", 17, :output)
+{:ok, line_handle} = Circuits.Cdev.request_line("gpiochip0", 17, :output)
 ```
 
 After getting a line handle can now set the value of the line:
 
 ```elixir
-Circuits.GPIO.Chip.read_value(line_handle)
+Circuits.Cdev.read_value(line_handle)
 0
 ```
 
 To set the value of the line:
 
 ```elixir
-Circuits.GPIO.Chip.set_value(line_handle, 1)
+Circuits.Cdev.set_value(line_handle, 1)
 :ok
 ```
 
@@ -60,21 +60,21 @@ Circuits.GPIO.Chip.set_value(line_handle, 1)
 First request a line handle from the GPIO chip:
 
 ```elixir
-{:ok, line_handle} = Circuits.GPIO.Chip.request_line("gpiochip0", [17, 27 20], :output)
+{:ok, line_handle} = Circuits.Cdev.request_line("gpiochip0", [17, 27 20], :output)
 ```
 
 After getting the line handle you can set the values of the lines. Notice that
 you to provide all the values in the same order as you requested the lines:
 
 ```elixir
-Circuits.GPIO.Chip.set_values(line_handle, [0, 1, 1])
+Circuits.Cdev.set_values(line_handle, [0, 1, 1])
 ```
 
 When reading the values of a line handle that controls more than one line you
 will receive a list of values in the order of that you requested the lines:
 
 ```elixir
-Circuits.GPIO.Chip.read_values(line_handle)
+Circuits.Cdev.read_values(line_handle)
 {:ok, [0, 1, 1]}
 ```
 
@@ -83,7 +83,7 @@ Circuits.GPIO.Chip.read_values(line_handle)
 You can listen for events on an GPIO line by calling the `listen_event/2` function:
 
 ```elixir
-Circuits.GPIO.Chip.listen_event("gpiochip0", 27)
+Circuits.Cdev.listen_event("gpiochip0", 27)
 :ok
 ```
 

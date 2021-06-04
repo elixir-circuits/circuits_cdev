@@ -1,11 +1,11 @@
-defmodule Circuits.GPIO.Chip.Application do
+defmodule Circuits.Cdev.Application do
   @moduledoc false
 
   use Application
 
   def start(_type, _args) do
     children = [
-      Circuits.GPIO.Chip.Events
+      Circuits.Cdev.Events
     ]
 
     opts = [strategy: :rest_for_one, name: Circuits.GPIO.Chip.Supervisor]

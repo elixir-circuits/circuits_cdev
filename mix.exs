@@ -58,7 +58,7 @@ defmodule Circuits.Cdev.MixProject do
     [
       {:elixir_make, "~> 0.6", runtime: false},
       {:ex_doc, "~> 0.28.0", only: :docs, runtime: false},
-      {:dialyxir, "~> 1.1.0", only: :dev, runtime: false}
+      {:dialyxir, "~> 1.2.0", only: :dev, runtime: false}
     ]
   end
 

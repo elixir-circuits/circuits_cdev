@@ -61,7 +61,7 @@ defmodule Circuits.Cdev do
   information.
 
   The `:input` direction means you can only read the current value of the GPIOs
-  on the line. See `Circuits.GPIO.read_value/1` for more information.
+  on the line. See `Circuits.Cdev.read_value/1` for more information.
   """
   @type line_direction() :: :input | :output
 

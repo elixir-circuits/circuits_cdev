@@ -1,2 +1,2 @@
-defmodule Circuits.GPIO.Chip.Test do
+defmodule Circuits.Cdev.Test do
 end

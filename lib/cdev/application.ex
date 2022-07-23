@@ -8,7 +8,7 @@ defmodule Circuits.Cdev.Application do
       Circuits.Cdev.Events
     ]
 
-    opts = [strategy: :rest_for_one, name: Circuits.GPIO.Chip.Supervisor]
+    opts = [strategy: :rest_for_one, name: Circuits.Cdev.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

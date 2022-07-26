@@ -130,7 +130,7 @@ int chip_request_event(struct gpio_chip *chip, int offset, struct gpio_chip_even
     req.handleflags = GPIOHANDLE_REQUEST_INPUT;
     req.eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
 
-    strncpy(req.consumer_label, "circuits_cdev", sizeof(req.consumer_label - 1));
+    strncpy(req.consumer_label, "circuits_cdev", sizeof(req.consumer_label));
 
     int rv = ioctl(chip->fd, GPIO_GET_LINEEVENT_IOCTL, &req);
 

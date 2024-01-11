@@ -2,8 +2,9 @@
 
 [![CircleCI](https://circleci.com/gh/elixir-circuits/circuits_cdev.svg?style=svg)](https://circleci.com/gh/elixir-circuits/circuits_cdev)
 
-
 Character device GPIO library for Elixir.
+
+*This library is no longer maintained. Please see [circuits_gpio](https://github.com/elixir-circuits/circuits_gpio) for a GPIO library that uses the character device GPIO API*
 
 Since Linux 4.8 the `sysfs` interface is deprecated in preference of the
 character device GPIO API.
